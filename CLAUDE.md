@@ -12,6 +12,11 @@ Home IoT projects. Each project lives in its own subfolder.
 ## Projects
 
 - [ADS-B-Test/](ADS-B-Test/): receive aircraft ADS-B signals on the Pi with readsb and read them from Python.
+- [Aircraft-Noise/](Aircraft-Noise/): three ESP32 + INMP441 mic nodes (one bridge on the Pi's USB, two remote
+  over ESP-NOW) plus Pi services that log ADS-B and node reports to SQLite, record audio and label it from
+  the flight log. `pi/` is Python (deployed with `pi/deploy.sh`, data in `~/aircraft-noise-data` on the Pi);
+  `esp32/` is ESP-IDF 5.3+ (`bridge/`, `node/`, shared `components/`). Its logger imports `Aircraft` from
+  `ADS-B-Test/adsb_monitor.py`, so keep that class's interface stable.
 
 ## Workflow
 

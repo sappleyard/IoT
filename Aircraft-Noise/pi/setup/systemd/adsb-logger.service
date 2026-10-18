@@ -1,0 +1,15 @@
+[Unit]
+Description=Aircraft-Noise step 1: log ADS-B aircraft positions to SQLite
+After=readsb.service
+Wants=readsb.service
+
+[Service]
+User=@USER@
+WorkingDirectory=@PI_DIR@
+ExecStart=/usr/bin/python3 -m aircraft_noise.adsb.logger
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

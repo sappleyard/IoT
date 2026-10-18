@@ -1,0 +1,3 @@
+# Node B. Paste the bridge's MAC (it prints it at boot) in place of the broadcast address.
+CONFIG_NODE_ID=2
+CONFIG_NODE_BRIDGE_MAC="FF:FF:FF:FF:FF:FF"

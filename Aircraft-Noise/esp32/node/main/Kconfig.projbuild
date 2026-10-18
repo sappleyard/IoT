@@ -1,0 +1,60 @@
+menu "Node settings"
+
+    config NODE_ID
+        int "Node ID (1 = A, 2 = B)"
+        range 1 7
+        default 1
+        help
+            Set by flash.sh from sdkconfig.node_a / sdkconfig.node_b.
+
+    config NODE_BRIDGE_MAC
+        string "Bridge MAC address"
+        default "FF:FF:FF:FF:FF:FF"
+        help
+            The bridge prints its MAC at boot ({"type":"bridge","mac":...}).
+            Left as FF:FF:FF:FF:FF:FF the node broadcasts until the bridge first
+            replies, then switches to it. Broadcasts get no ACKs or retries, so set
+            the real MAC once you know it.
+
+    config NODE_DEEP_SLEEP
+        bool "Deep sleep between heartbeats (battery power)"
+        default y
+        help
+            On: wake every few seconds, check in with the bridge, and only listen
+            when the Pi asks. Off: listen and report every second, for USB power.
+
+    config NODE_HEARTBEAT_S
+        int "Seconds between heartbeats while sleeping"
+        depends on NODE_DEEP_SLEEP
+        range 1 3600
+        default 5
+
+    config NODE_REPLY_WAIT_MS
+        int "How long to stay awake for the bridge's reply (ms)"
+        range 20 2000
+        default 100
+
+    config NODE_BOOT_AWAKE_S
+        int "Seconds to stay awake after power-on (for 'audio on' over USB)"
+        range 0 600
+        default 30
+
+    config NODE_BATTERY_ADC
+        bool "Measure battery voltage on an ADC pin"
+        default n
+
+    config NODE_BATTERY_ADC_CHANNEL
+        int "ADC1 channel for the battery divider"
+        depends on NODE_BATTERY_ADC
+        range 0 9
+        default 0
+        help
+            ADC1 channel 0 is GPIO1 on the ESP32-S3 and GPIO36 on the original ESP32.
+
+    config NODE_BATTERY_DIVIDER
+        int "Divider ratio (battery voltage / ADC pin voltage)"
+        depends on NODE_BATTERY_ADC
+        range 1 10
+        default 2
+
+endmenu
