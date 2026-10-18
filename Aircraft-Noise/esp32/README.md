@@ -45,7 +45,7 @@ the wrong I2S slot: change `I2S_STD_SLOT_LEFT` to `I2S_STD_SLOT_RIGHT` in
 
 ```
 mkdir -p ~/esp && cd ~/esp
-git clone -b v5.4.2 --recursive https://github.com/espressif/esp-idf.git
+git clone -b v5.5.6 --recursive https://github.com/espressif/esp-idf.git
 ./esp-idf/install.sh esp32
 ```
 
