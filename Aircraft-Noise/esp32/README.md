@@ -51,6 +51,12 @@ git clone -b v5.5.6 --recursive https://github.com/espressif/esp-idf.git
 
 In each new terminal before building: `. ~/esp/esp-idf/export.sh`
 
+**VS Code:** install Espressif's *ESP-IDF* extension (`espressif.esp-idf-extension`), run
+*ESP-IDF: Configure ESP-IDF Extension* → *Use existing setup*, and point it at `~/esp/esp-idf`
+(tools in `~/.espressif`). Open `esp32/bridge` or `esp32/node` as the folder to get build, flash,
+monitor and menuconfig buttons in the status bar. The command line and the extension share the same
+install. (PlatformIO isn't used: this is a plain ESP-IDF project, with per-node builds that PlatformIO would need extra setup for.)
+
 ## Flash the bridge
 
 Plug the board in by USB-C (use a data cable: some USB-C cables are charge-only).
