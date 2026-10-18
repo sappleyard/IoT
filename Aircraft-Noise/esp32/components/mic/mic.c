@@ -5,6 +5,7 @@
 #include "driver/i2s_std.h"
 #include "esp_check.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 
 static const char *TAG = "mic";
