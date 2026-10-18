@@ -15,6 +15,7 @@ Home IoT projects. Each project lives in its own subfolder.
 
 ## Workflow
 
-- The repo is pushed to GitHub. Commit and push whenever new code is written or changed,
-  with a short message describing the change.
+- The repo is pushed to GitHub (private: github.com/sappleyard/IoT). A PostToolUse hook
+  (`.claude/hooks/autocommit.sh`) commits and pushes each file Claude edits. Changes made
+  any other way still need committing and pushing by hand.
 - Python code uses the standard library only unless a dependency is clearly worth it.
