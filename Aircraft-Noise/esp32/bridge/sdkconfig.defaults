@@ -3,8 +3,5 @@
 # Keep log output down to warnings, so it doesn't crowd the JSON lines going to the Pi.
 CONFIG_LOG_DEFAULT_LEVEL_WARN=y
 
-# Original ESP32 (USB-UART chip): fast enough for the raw audio stream.
-CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
-
 CONFIG_FREERTOS_HZ=1000
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
