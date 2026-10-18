@@ -16,39 +16,48 @@ Code both use is in [components/](components/):
 | `radio` | Wi-Fi in station mode (connected to nothing) on a fixed channel, plus ESP-NOW |
 | `serial_link` | Line-based USB serial: JSON out, commands in, base64 audio chunks |
 
-Written for **ESP-IDF 5.3 or newer**. Defaults are for the **ESP32-S3** (native USB, and much
-faster for the step 5 model); the original ESP32 works too.
+Written for **ESP-IDF 5.3 or newer**. The boards in use are **original ESP32 dev boards**
+(ESP32-WROOM-32, USB-C, CP2102 USB-serial chip). The code also supports the ESP32-S3 (native
+USB, faster for the step 5 model) if you switch later.
+
+The CP2102 carries the serial link at 921600 baud, comfortably more than the ~43 KB/s raw
+audio stream needs. The Pi sees it as `/dev/ttyUSB0`, the Mac as `/dev/cu.usbserial-*` or
+`/dev/cu.SLAB_USBtoUART` (if no port appears on the Mac, install Silicon Labs' CP210x driver).
 
 ## Wiring the INMP441
 
-| INMP441 | ESP32-S3 (default) | Original ESP32 (default) |
+| INMP441 | ESP32 (these boards) | ESP32-S3 |
 |---|---|---|
 | VDD | 3.3 V | 3.3 V |
 | GND | GND | GND |
-| SCK (bit clock) | GPIO 4 | GPIO 26 |
-| WS (word select) | GPIO 5 | GPIO 25 |
-| SD (data) | GPIO 6 | GPIO 33 |
+| SCK (bit clock) | GPIO 26 | GPIO 4 |
+| WS (word select) | GPIO 25 | GPIO 5 |
+| SD (data) | GPIO 33 | GPIO 6 |
 | L/R | GND (left channel) | GND (left channel) |
 
 Change the pins in `idf.py menuconfig` → *INMP441 microphone*.
+
+If a board's level stays at the noise floor whatever you do, the original ESP32 may be reading
+the wrong I2S slot: change `I2S_STD_SLOT_LEFT` to `I2S_STD_SLOT_RIGHT` in
+[components/mic/mic.c](components/mic/mic.c).
 
 ## Install ESP-IDF (once, on the Mac)
 
 ```
 mkdir -p ~/esp && cd ~/esp
 git clone -b v5.4.2 --recursive https://github.com/espressif/esp-idf.git
-./esp-idf/install.sh esp32s3,esp32
+./esp-idf/install.sh esp32
 ```
 
 In each new terminal before building: `. ~/esp/esp-idf/export.sh`
 
 ## Flash the bridge
 
-Plug the S3 in by its **USB** port (not the "UART" one). That's the port the Pi talks to later.
+Plug the board in by USB-C (use a data cable: some USB-C cables are charge-only).
 
 ```
 cd Aircraft-Noise/esp32/bridge
-idf.py set-target esp32s3          # once
+idf.py set-target esp32            # once
 idf.py flash monitor               # Ctrl+] to quit the monitor
 ```
 
@@ -73,7 +82,7 @@ cd Aircraft-Noise/esp32/node
 ./flash.sh a menuconfig            # change node A's settings
 ```
 
-Each node gets its own build folder (`build_a`, `build_b`) and settings file. Original ESP32: `IDF_TARGET=esp32 ./flash.sh a`.
+Each node gets its own build folder (`build_a`, `build_b`) and settings file. For an ESP32-S3: `IDF_TARGET=esp32s3 ./flash.sh a`.
 
 Node settings (menuconfig → *Node settings*):
 
