@@ -15,6 +15,15 @@ menu "INMP441 microphone"
         default 6 if IDF_TARGET_ESP32S3
         default 33
 
+    config MIC_HIGHPASS_HZ
+        int "High-pass filter cut-off (Hz)"
+        range 10 200
+        default 50
+        help
+            Removes rumble below what the INMP441 can really measure (it's rated
+            from 60 Hz): wind, traffic vibration, knocks. Applies to the levels and
+            the raw audio stream alike. Aircraft noise is mostly 50-1000 Hz.
+
     config MIC_AUDIO_GAIN_DB
         int "Digital gain for the raw 16-bit audio stream (dB)"
         range 0 36

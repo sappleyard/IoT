@@ -19,9 +19,9 @@ RECEIVER_ALT_M = 0.0       # receiver height above sea level, used for slant ran
 
 # --- Step 3: link to the bridge ESP32 ----------------------------------------------------------
 SERIAL_PORT = None         # None = find the ESP32 automatically
-SERIAL_BAUD = 921600       # only matters for boards on a USB-UART chip; native USB ignores it
+SERIAL_BAUD = 230400       # must match the firmware; ignored by native USB (ESP32-S3)
 COMMAND_PORT = 47000       # UDP port on 127.0.0.1 where the link service takes commands
-RECORD_BRIDGE_AUDIO = False  # step 4: True = save the bridge mic's raw audio as hourly WAVs
+RECORD_BRIDGE_AUDIO = True   # step 4: save the bridge mic's raw audio as hourly WAVs
 
 # Per-node mic calibration (step 2): phone sound-meter reading minus the node's level_db.
 # Stored alongside each report, so calibrated level = level_db + cal_offset_db.

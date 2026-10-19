@@ -1,7 +1,7 @@
 // Text lines over USB serial between an ESP32 and the Pi (or a laptop).
 //
-// Outgoing lines are JSON messages or "A <node> <seq> <base64>" audio chunks; incoming
-// lines are commands like "audio on". Works with both the native USB port (ESP32-S3) and
+// Outgoing: JSON text lines, plus binary audio frames (mu-law, with a CRC; see
+// serial_link.c). Incoming: command lines like "audio on". Works with both the native USB port (ESP32-S3) and
 // a USB-UART chip (original ESP32), whichever is the console in sdkconfig.
 #pragma once
 
@@ -26,5 +26,5 @@ void serial_link_print_line(const char *fmt, ...) __attribute__((format(printf, 
 // Next line received from the host, waiting up to `wait` ticks. False if none.
 bool serial_link_read_line(char out[SERIAL_LINE_MAX], TickType_t wait);
 
-// Send a chunk of 16-bit audio as "A <node> <seq> <base64>". Call from one task only.
+// Send a chunk of 16-bit audio as a binary mu-law frame. Call from one task only.
 void serial_link_send_audio(uint8_t node_id, uint16_t seq, const int16_t *pcm, size_t samples);

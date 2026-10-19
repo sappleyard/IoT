@@ -29,9 +29,10 @@ void level_meter_add(level_meter_t *m, const float *x, size_t n)
     if (n == 0) {
         return;
     }
-    double e = 0;
+    // Sum the block in float (the ESP32 has a float unit, but double is done in software).
+    float e = 0;
     for (size_t i = 0; i < n; i++) {
-        e += (double)x[i] * x[i];
+        e += x[i] * x[i];
     }
     m->energy += e;
     m->samples += n;

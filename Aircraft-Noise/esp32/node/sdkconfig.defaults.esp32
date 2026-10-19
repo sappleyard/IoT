@@ -1,11 +1,12 @@
-# Original ESP32: the console goes through the board's USB-UART chip (CP2102) on UART0.
-# 921600 baud carries the raw audio stream (~43 KB/s); the default 115200 can't.
+# Original ESP32: the console goes through the board's USB-UART chip (CH340) on UART0.
+# 230400 baud: the raw audio (16 KB/s as mu-law) fits easily, and it stays below what the
+# CH340 USB chip can pass on (~40 KB/s); faster and its tiny buffer overflows and drops bytes.
 # The baud rate only takes effect with a "custom" console, hence the first line.
 CONFIG_ESP_CONSOLE_UART_CUSTOM=y
 CONFIG_ESP_CONSOLE_UART_NUM=0
 CONFIG_ESP_CONSOLE_UART_TX_GPIO=1
 CONFIG_ESP_CONSOLE_UART_RX_GPIO=3
-CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=230400
 
 # These dev boards have 4 MB of Boya flash (esptool and the boot log both report it).
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
