@@ -1,3 +1,3 @@
-# Node A. Paste the bridge's MAC (it prints it at boot) in place of the broadcast address.
+# Node A. Sends to the bridge (the ESP32 on the Pi), whose MAC this is.
 CONFIG_NODE_ID=1
-CONFIG_NODE_BRIDGE_MAC="FF:FF:FF:FF:FF:FF"
+CONFIG_NODE_BRIDGE_MAC="28:05:A5:34:6B:38"
