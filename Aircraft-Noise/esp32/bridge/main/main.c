@@ -240,7 +240,8 @@ void app_main(void)
     print_status();   // includes the MAC address the remote nodes need
 
     if (mic_init() == ESP_OK) {
-        xTaskCreate(mic_task, "mic", 6144, NULL, 6, NULL);
+        // Core 1: core 0 runs Wi-Fi, which must not be starved.
+        xTaskCreatePinnedToCore(mic_task, "mic", 6144, NULL, 6, NULL, 1);
     } else {
         serial_link_print_line("{\"type\":\"error\",\"msg\":\"mic failed to start, check wiring\"}");
     }

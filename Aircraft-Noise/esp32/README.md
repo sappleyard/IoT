@@ -14,15 +14,22 @@ Code both use is in [components/](components/):
 | `protocol` | The `NodeReport` and `NodeCommand` packets, and the JSON line format |
 | `mic` | INMP441 over I2S at 16 kHz; 1 s level and peak in dB SPL; 16-bit audio for streaming |
 | `radio` | Wi-Fi in station mode (connected to nothing) on a fixed channel, plus ESP-NOW |
-| `serial_link` | Line-based USB serial: JSON out, commands in, base64 audio chunks |
+| `serial_link` | USB serial: JSON lines out, commands in, binary μ-law audio frames with a CRC |
 
 Written for **ESP-IDF 5.3 or newer**. The boards in use are **original ESP32 dev boards**
 (ESP32-D0WD-V3 rev 3.1, USB-C, CH340 USB-serial chip, 4 MB flash). The code also supports the ESP32-S3 (native
 USB, faster for the step 5 model) if you switch later.
 
-The CH340 carries the serial link at 921600 baud, comfortably more than the ~43 KB/s raw
-audio stream needs. The Pi sees it as `/dev/ttyUSB0`, the Mac as `/dev/cu.usbserial-*` or
-`/dev/cu.wchusbserial*` (macOS has a CH340 driver built in; if no port appears, try a different cable, as some USB-C cables are charge-only).
+The CH340 carries the serial link at **230400 baud**. That's deliberate: the CH340 only passes
+about 40 KB/s on to USB, and its tiny buffer overflows (dropping bytes) whenever the line runs
+faster than that. At 230400 the line itself stays below that limit. The raw audio fits because
+it's sent as 8-bit μ-law (16 KB/s) rather than 16-bit (32 KB/s), with a CRC on every frame.
+The Pi sees the board as `/dev/ttyUSB0`, the Mac as `/dev/cu.usbserial-*` or
+`/dev/cu.wchusbserial*` (macOS has a CH340 driver built in; if no port appears, try a different
+cable, as some USB-C cables are charge-only).
+
+Opening the serial port on Linux resets these boards (a CH340 quirk with the auto-reset
+circuit). That's harmless: the Pi's link service keeps the port open all the time.
 
 ## Wiring the INMP441
 
@@ -120,9 +127,13 @@ long-range mode. **These must match on all three boards.**
 {"type":"report","node":1,"seq":5,"uptime_ms":..,"level_db":48.2,"peak_db":51.0,"p_aircraft":null,"battery_mv":0,"rssi":-63}
 {"type":"node_seen","node":1,"mac":".."}       first report from a node
 {"type":"queued"|"delivered","node":2,"command":"listen","seconds":90}
-A 0 812 <base64>                                 raw audio: node, chunk number, 125 ms of 16-bit PCM
+<binary frame>                                   raw audio, between the lines (below)
 ```
 `level_db` is `null` on a heartbeat (the node didn't listen). `p_aircraft` stays `null` until step 5.
+
+Audio frame (binary, little-endian): `A5 5A | node u8 | seq u16 | n u16 | n bytes μ-law | CRC-16/CCITT u16`.
+Each frame is 125 ms of 16 kHz audio (n = 2000), with the CRC covering node..payload. The Pi
+decodes it back to 16-bit WAV and drops any frame whose CRC fails.
 
 **Pi → bridge** (USB serial): `listen <node> <seconds>`, `stop <node>`, `audio on`, `audio off`, `status`.
 

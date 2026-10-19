@@ -11,12 +11,44 @@
 static const char *TAG = "mic";
 
 #define RAW_CHUNK        512                  // samples per i2s_channel_read
-#define DC_BLOCK_POLE    0.995f               // high-pass at ~13 Hz to remove the mic's DC offset
 #define STARTUP_DISCARD  (MIC_SAMPLE_RATE / 4) // INMP441 output settles ~85 ms after the clock starts
 
 static i2s_chan_handle_t s_rx;
 static int32_t s_raw[RAW_CHUNK];
-static float s_prev_in, s_prev_out;
+
+// High-pass filter: a 2nd-order Butterworth (12 dB/octave) at CONFIG_MIC_HIGHPASS_HZ.
+// It removes the mic's DC offset and the rumble below what the INMP441 can really measure
+// (it's rated from 60 Hz): wind, traffic vibration, things knocking the desk. Without it that
+// rumble dominates the dB reading. Direct form I, which stays accurate in float at low cut-offs.
+static struct {
+    float b0, b1, b2, a1, a2;   // coefficients, normalised so a0 = 1
+    float x1, x2, y1, y2;       // previous inputs and outputs
+} s_hpf;
+
+static void highpass_init(float cutoff_hz)
+{
+    // Audio EQ Cookbook (R. Bristow-Johnson) high-pass, Q = 1/sqrt(2).
+    float w0 = 2.0f * (float)M_PI * cutoff_hz / MIC_SAMPLE_RATE;
+    float cosw = cosf(w0);
+    float alpha = sinf(w0) / (2.0f * 0.70710678f);
+    float a0 = 1.0f + alpha;
+    s_hpf.b0 = (1.0f + cosw) / 2.0f / a0;
+    s_hpf.b1 = -(1.0f + cosw) / a0;
+    s_hpf.b2 = s_hpf.b0;
+    s_hpf.a1 = -2.0f * cosw / a0;
+    s_hpf.a2 = (1.0f - alpha) / a0;
+}
+
+static inline float highpass(float x)
+{
+    float y = s_hpf.b0 * x + s_hpf.b1 * s_hpf.x1 + s_hpf.b2 * s_hpf.x2
+              - s_hpf.a1 * s_hpf.y1 - s_hpf.a2 * s_hpf.y2;
+    s_hpf.x2 = s_hpf.x1;
+    s_hpf.x1 = x;
+    s_hpf.y2 = s_hpf.y1;
+    s_hpf.y1 = y;
+    return y;
+}
 
 esp_err_t mic_init(void)
 {
@@ -56,9 +88,11 @@ esp_err_t mic_init(void)
         return err;
     }
 
+    highpass_init(CONFIG_MIC_HIGHPASS_HZ);
+    // Throw away the start-up samples, but run them through the filter so it has settled.
+    float settle[RAW_CHUNK];
     for (int left = STARTUP_DISCARD; left > 0; left -= RAW_CHUNK) {
-        size_t got;
-        i2s_channel_read(s_rx, s_raw, sizeof s_raw, &got, portMAX_DELAY);
+        mic_read(settle, RAW_CHUNK);
     }
     return ESP_OK;
 }
@@ -75,10 +109,7 @@ esp_err_t mic_read(float *out, size_t n)
         for (size_t i = 0; i < got; i++) {
             // The 24-bit sample sits in the top of each 32-bit word: shift it down.
             float x = (float)(s_raw[i] >> 8) * (1.0f / 8388608.0f);
-            float y = x - s_prev_in + DC_BLOCK_POLE * s_prev_out;
-            s_prev_in = x;
-            s_prev_out = y;
-            out[done + i] = y;
+            out[done + i] = highpass(x);
         }
         done += got;
     }
