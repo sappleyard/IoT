@@ -1,28 +1,40 @@
 #!/usr/bin/env python3
 """Play a short clip on the Sonos speaker from the Pi.
 
-Finds the speaker with SSDP, serves the clip over HTTP from this machine, and tells
-the speaker to fetch and play it through its UPnP AVTransport service (port 1400).
-Before the clip it snapshots what the speaker was doing (source, track, position,
-volume, playing or paused) and puts that back afterwards. Standard library only.
+Finds the speaker with SSDP and serves the clip over HTTP from this machine.
 
-    python3 play_test.py [clip.wav] [--speaker 192.168.1.178] [--volume 25]
+If the speaker supports audio clips (the Kitchen Era 100 does), the clip is sent through
+the Sonos local control API (port 1443): it plays over whatever is on, turning that down
+while it plays, and the music never stops, so this works for Spotify Connect and AirPlay.
+
+Otherwise, or with --replace, the clip replaces the current source through UPnP
+AVTransport (port 1400): the script snapshots what the speaker was doing (source, track,
+position, volume, playing or paused) and puts it back afterwards. That can't restart
+Spotify Connect or AirPlay, which are run from the phone. Standard library only.
+
+    python3 play_test.py [clip.wav] [--speaker 192.168.1.178] [--volume 25] [--replace]
 """
 import argparse
 import functools
 import http.server
+import json
 import os
 import re
 import socket
+import ssl
 import threading
 import time
 import urllib.error
 import urllib.request
+import wave
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 
 SSDP_ADDR = ("239.255.255.250", 1900)
 SONOS_PORT = 1400
+LOCAL_API_PORT = 1443
+# Speakers accept this public key for local control; Home Assistant uses the same one.
+LOCAL_API_KEY = "123e4567-e89b-12d3-a456-426655440000"
 HTTP_PORT = 8765
 
 
@@ -151,43 +163,84 @@ def wait_for_playing(speaker, timeout=5.0):
     return False
 
 
+def local_api(speaker, method, path, body=None):
+    """Call the speaker's local control API (HTTPS with a self-signed certificate)."""
+    req = urllib.request.Request(
+        f"https://{speaker}:{LOCAL_API_PORT}/api/v1{path}",
+        method=method,
+        data=json.dumps(body).encode() if body is not None else None,
+        headers={"X-Sonos-Api-Key": LOCAL_API_KEY, "Content-Type": "application/json"},
+    )
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    with urllib.request.urlopen(req, timeout=5, context=ctx) as resp:
+        return json.load(resp)
+
+
+def audio_clip_player_id(speaker):
+    """The speaker's player ID if it can play audio clips over other audio, else None."""
+    try:
+        info = local_api(speaker, "GET", "/players/local/info")
+    except (OSError, ValueError):
+        return None
+    if "AUDIO_CLIP" in info.get("device", {}).get("capabilities", []):
+        return info["playerId"]
+    return None
+
+
+def play_audio_clip(speaker, player_id, url, volume):
+    body = {
+        "name": "Sonos-Test",
+        "appId": "com.sebpi.sonostest",
+        "streamUrl": url,
+        "clipType": "CUSTOM",
+        "priority": "LOW",
+    }
+    if volume is not None:
+        body["volume"] = volume
+    return local_api(speaker, "POST", f"/players/{player_id}/audioClip", body)
+
+
+def clip_seconds(path):
+    try:
+        with wave.open(path) as w:
+            return w.getnframes() / w.getframerate()
+    except (wave.Error, EOFError):
+        return 5.0
+
+
 def serve(directory, port):
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=directory)
+    """Serve directory over HTTP; the returned event is set once a file has been sent."""
+    fetched = threading.Event()
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            super().do_GET()
+            fetched.set()
+
+    handler = functools.partial(Handler, directory=directory)
     server = http.server.ThreadingHTTPServer(("0.0.0.0", port), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server
+    return server, fetched
 
 
-def main():
-    here = os.path.dirname(os.path.abspath(__file__))
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("clip", nargs="?", default=os.path.join(here, "test.wav"))
-    p.add_argument("--speaker", help="speaker IP (default: discover with SSDP)")
-    p.add_argument("--volume", type=int, help="set volume 0-100 before playing")
-    args = p.parse_args()
-
-    speaker = args.speaker or discover_sonos()
-    print(f"Speaker: {zone_name(speaker)} ({speaker})")
-
-    clip = os.path.abspath(args.clip)
-    server = serve(os.path.dirname(clip), HTTP_PORT)
-    url = f"http://{local_ip_for(speaker)}:{HTTP_PORT}/{os.path.basename(clip)}"
-    print(f"Serving {url}")
-
+def replace_and_restore(speaker, url, volume):
+    """Play the clip in place of the current source, then put the old source back."""
     snap = snapshot(speaker)
     print(f"Was {snap['state']}: {snap['uri'] or 'nothing'} (track {snap['track']} at {snap['position']})")
 
     # Pause first so the old source doesn't keep playing while the clip loads.
     if snap["state"] == "PLAYING":
         soap(speaker, "AVTransport", "Pause", {"InstanceID": 0})
-    if args.volume is not None:
-        set_volume(speaker, args.volume)
+    if volume is not None:
+        set_volume(speaker, volume)
 
     soap(speaker, "AVTransport", "SetAVTransportURI",
          {"InstanceID": 0, "CurrentURI": url, "CurrentURIMetaData": ""})
     soap(speaker, "AVTransport", "Play", {"InstanceID": 0, "Speed": 1})
 
-    # Keep serving until the speaker has fetched and finished the clip.
+    # Wait for the clip to start and finish.
     started = False
     deadline = time.time() + 30
     while time.time() < deadline:
@@ -197,11 +250,41 @@ def main():
             break
         time.sleep(0.5)
     print("Clip done" if started else f"Speaker never started playing (state {state})")
-    server.shutdown()
 
     restore(speaker, snap)
     print(f"Restored: {transport_state(speaker)}")
 
+
+def main():
+    here = os.path.dirname(os.path.abspath(__file__))
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("clip", nargs="?", default=os.path.join(here, "test.wav"))
+    p.add_argument("--speaker", help="speaker IP (default: discover with SSDP)")
+    p.add_argument("--volume", type=int, help="volume 0-100 for the clip")
+    p.add_argument("--replace", action="store_true",
+                   help="replace the current source instead of playing over it")
+    args = p.parse_args()
+
+    speaker = args.speaker or discover_sonos()
+    print(f"Speaker: {zone_name(speaker)} ({speaker})")
+
+    clip = os.path.abspath(args.clip)
+    server, fetched = serve(os.path.dirname(clip), HTTP_PORT)
+    url = f"http://{local_ip_for(speaker)}:{HTTP_PORT}/{os.path.basename(clip)}"
+    print(f"Serving {url}")
+
+    player_id = None if args.replace else audio_clip_player_id(speaker)
+    if player_id:
+        play_audio_clip(speaker, player_id, url, args.volume)
+        print("Playing as an audio clip over the current audio")
+        if fetched.wait(15):
+            time.sleep(clip_seconds(clip) + 1)
+            print("Clip done")
+        else:
+            print("Speaker never fetched the clip")
+    else:
+        replace_and_restore(speaker, url, args.volume)
+    server.shutdown()
 
 if __name__ == "__main__":
     main()
