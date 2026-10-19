@@ -17,6 +17,8 @@ Home IoT projects. Each project lives in its own subfolder.
   the flight log. `pi/` is Python (deployed with `pi/deploy.sh`, data in `~/aircraft-noise-data` on the Pi);
   `esp32/` is ESP-IDF 5.3+ (`bridge/`, `node/`, shared `components/`). Its logger imports `Aircraft` from
   `ADS-B-Test/adsb_monitor.py`, so keep that class's interface stable.
+- [Sonos-Test/](Sonos-Test/): play a clip on the Sonos speaker (Kitchen, 192.168.1.178) from the Pi over
+  UPnP; the Pi serves the file over HTTP and the speaker fetches it. Copied to `~/sonos-test` on the Pi.
 
 ## Workflow
 
