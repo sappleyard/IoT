@@ -18,4 +18,15 @@ ssh sebpi@sebpi 'python3 ~/sonos-test/play_test.py --volume 25'
 ```
 
 Options: a different clip path as the first argument, `--speaker IP` to skip discovery,
-`--volume 0-100` to set the volume first. The clip replaces whatever the speaker was playing.
+`--volume 0-100` to set the volume for the clip.
+
+## Resuming what was playing
+
+Before the clip the script saves the speaker's source, queue track, position in the track,
+volume and play state. After the clip it puts all of that back and presses play again if
+the speaker was playing (it stays paused or stopped if it was). If a source won't restart
+at the saved position, it plays that source from the start.
+
+Sources that come back: the Sonos queue (tracks from the Sonos app), radio, and plain
+HTTP streams. Spotify Connect and AirPlay sessions are run from the phone, so the speaker
+can't restart them by itself; they will stay stopped after the clip.
