@@ -17,12 +17,12 @@ Code both use is in [components/](components/):
 | `serial_link` | Line-based USB serial: JSON out, commands in, base64 audio chunks |
 
 Written for **ESP-IDF 5.3 or newer**. The boards in use are **original ESP32 dev boards**
-(ESP32-WROOM-32, USB-C, CP2102 USB-serial chip). The code also supports the ESP32-S3 (native
+(ESP32-D0WD-V3 rev 3.1, USB-C, CH340 USB-serial chip, 4 MB flash). The code also supports the ESP32-S3 (native
 USB, faster for the step 5 model) if you switch later.
 
-The CP2102 carries the serial link at 921600 baud, comfortably more than the ~43 KB/s raw
+The CH340 carries the serial link at 921600 baud, comfortably more than the ~43 KB/s raw
 audio stream needs. The Pi sees it as `/dev/ttyUSB0`, the Mac as `/dev/cu.usbserial-*` or
-`/dev/cu.SLAB_USBtoUART` (if no port appears on the Mac, install Silicon Labs' CP210x driver).
+`/dev/cu.wchusbserial*` (macOS has a CH340 driver built in; if no port appears, try a different cable, as some USB-C cables are charge-only).
 
 ## Wiring the INMP441
 
@@ -78,6 +78,10 @@ Clap and check the level jumps. To calibrate, compare it with a phone sound-mete
 put the difference in `MIC_CAL_OFFSET_DB` in [../pi/aircraft_noise/config.py](../pi/aircraft_noise/config.py).
 
 Finally plug the bridge into the Pi; the `bridge-link` service picks it up automatically.
+
+**Flashing a board that's already plugged into the Pi:** build on the Mac, then
+`./flash_via_pi.sh bridge` (or `node_a` / `node_b`). It copies the build to the Pi and flashes
+it with esptool there.
 
 ## Flash the nodes
 
