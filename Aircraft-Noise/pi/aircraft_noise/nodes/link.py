@@ -89,7 +89,9 @@ def main():
                         log.info("bridge: %s", json.dumps(msg))
                         if msg.get("type") == "bridge":   # the bridge has just restarted
                             start_audio(link)
-                elif msg:
+                elif msg and sum(c.isprintable() for c in msg) > 0.9 * len(msg):
+                    # Firmware log text. (The boot ROM talks at a different baud rate, so its
+                    # messages arrive as gibberish: those are skipped.)
                     log.info("esp: %s", msg[:200])
 
             # Forward any commands from other programs.
