@@ -65,6 +65,7 @@ def main():
     link = SerialLines(args.port, SERIAL_BAUD, on_open=start_audio)
     writers = {}          # node -> HourlyWavWriter
     last_commit = time.monotonic()
+    last_audio = time.monotonic()   # when recording is on, re-ask if the audio stops
     log.info("taking commands on udp://127.0.0.1:%d; audio recording %s",
              COMMAND_PORT, "on" if args.audio else "off")
 
@@ -76,6 +77,7 @@ def main():
                 now = time.time()
                 msg = parse_line(raw)
                 if isinstance(msg, Audio):
+                    last_audio = time.monotonic()
                     if args.audio:
                         if msg.node not in writers:
                             writers[msg.node] = HourlyWavWriter(AUDIO_DIR, msg.node)
@@ -101,6 +103,13 @@ def main():
                     log.info("command -> bridge: %s", cmd)
                     if not link.write_line(cmd):
                         log.warning("bridge not connected, dropped: %s", cmd)
+
+            # The bridge forgets "audio on" when it restarts, and a command sent while it's still
+            # booting can be lost: if no audio has arrived for a while, ask again.
+            if args.audio and link.ser is not None and time.monotonic() - last_audio > 10:
+                log.warning("no audio for 10 s, sending audio on again")
+                start_audio(link)
+                last_audio = time.monotonic()
 
             if time.monotonic() - last_commit >= 1.0:
                 db.commit()
