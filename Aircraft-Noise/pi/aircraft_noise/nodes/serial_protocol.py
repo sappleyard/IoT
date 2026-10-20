@@ -192,7 +192,9 @@ class SerialLines:
         if self.ser is None:
             return False
         try:
-            self.ser.write(text.encode() + b"\n")
+            # The leading newline ends any half-received line (e.g. a command that arrived while
+            # the board was still starting up), so it can't get glued onto this one.
+            self.ser.write(b"\n" + text.encode() + b"\n")
             return True
         except (serial.SerialException, OSError) as e:
             log.warning("lost the serial port: %s", e)
