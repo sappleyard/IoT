@@ -9,9 +9,9 @@ ADS-B receiver to work out which plane made which noise.
  (room 1, mic)       │
                      ▼
  Node B ────────► Bridge ESP32 ──USB serial──► Raspberry Pi ◄── RTL-SDR (ADS-B)
- (room 2, mic)    (mic)                        │
+ (room 2, mic)    (relay; no mic now)          │
                                                ├─ adsb-logger:  aircraft positions → SQLite
-                                               └─ bridge-link:  node reports (+ raw audio) → SQLite / WAV
+                                               └─ bridge-link:  node reports → SQLite (raw audio: laptop recorder)
 ```
 
 ## Folders

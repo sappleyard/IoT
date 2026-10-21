@@ -4,7 +4,7 @@ Three boards, two firmwares:
 
 | Board | Firmware | Job |
 |---|---|---|
-| Bridge | [bridge/](bridge/) | Plugged into the Pi by USB. Receives the remote nodes' reports over ESP-NOW and passes them to the Pi as JSON lines, along with its own mic's report. Holds the Pi's commands until each node checks in. Can stream its raw audio to the Pi. |
+| Bridge | [bridge/](bridge/) | Plugged into the Pi by USB. Receives the remote nodes' reports over ESP-NOW and passes them to the Pi as JSON lines. Holds the Pi's commands until each node checks in. Optionally has its own mic (menuconfig → *Bridge settings* → *Bridge has a microphone*; **currently off**, its mic moved to a node), reported as node 0 and streamable to the Pi. |
 | Node A, Node B | [node/](node/) | Battery or USB powered, in other rooms. Measures its mic and reports to the bridge. Deep-sleeps between heartbeats, and listens when the Pi asks. |
 
 Code both use is in [components/](components/):

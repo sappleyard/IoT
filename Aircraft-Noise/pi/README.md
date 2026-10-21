@@ -91,8 +91,9 @@ the offset that was in force, so calibrated level = `level_db + cal_offset_db`.
 
 ## Step 4: collecting labelled audio
 
-1. **Bridge audio:** set `RECORD_BRIDGE_AUDIO = True` in config.py, deploy, and restart
-   bridge-link. Hourly WAVs appear in `~/aircraft-noise-data/audio/`.
+1. **Bridge audio** (only if the bridge has a mic; it doesn't at the moment): set
+   `RECORD_BRIDGE_AUDIO = True` in config.py and turn on *Bridge has a microphone* in the bridge
+   firmware. Hourly WAVs then appear in `~/aircraft-noise-data/audio/`.
 2. **Remote spots:** put a node where it will live, plug it into a laptop and record:
    ```
    pip install pyserial

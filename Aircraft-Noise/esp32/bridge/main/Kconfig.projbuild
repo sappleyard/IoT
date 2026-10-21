@@ -1,0 +1,11 @@
+menu "Bridge settings"
+
+    config BRIDGE_HAS_MIC
+        bool "Bridge has a microphone"
+        default n
+        help
+            On: the bridge measures its own INMP441 and reports it as node 0, and can
+            stream its raw audio to the Pi ("audio on"). Off: it only relays the
+            remote nodes. Its mic was moved to a node in Oct 2026, so this is off.
+
+endmenu
