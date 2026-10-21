@@ -8,6 +8,9 @@ DATA_DIR = Path(os.environ.get("AIRCRAFT_NOISE_DATA", Path.home() / "aircraft-no
 DB_PATH = DATA_DIR / "noise.db"          # ADS-B positions + node reports (SQLite)
 AUDIO_DIR = DATA_DIR / "audio"           # hourly WAV files from the mics
 DATASET_DIR = DATA_DIR / "dataset"       # labelled 1 s clips for training
+# While this file exists, both services idle and the link lets go of the serial port
+# (e.g. to flash a board). No sudo needed:  touch ~/aircraft-noise-data/PAUSED  /  rm ...
+PAUSE_FILE = DATA_DIR / "PAUSED"
 
 # --- Step 1: ADS-B logger ----------------------------------------------------------------------
 AIRCRAFT_JSON = "/run/readsb/aircraft.json"   # written by readsb every second (a URL works too)

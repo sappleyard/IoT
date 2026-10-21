@@ -125,6 +125,11 @@ class SerialLines:
             pass
         self.ser = None
 
+    def close(self):
+        """Let go of the port. The next read_lines() reopens it."""
+        if self.ser is not None:
+            self._close()
+
     def read_lines(self):
         """Text lines (bytes) and Audio frames received so far, in order (often none).
 
