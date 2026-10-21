@@ -37,8 +37,10 @@ CREATE TABLE IF NOT EXISTS node_reports (
     node          INTEGER NOT NULL,  -- 0 = bridge, 1 = A, 2 = B
     seq           INTEGER,
     uptime_ms     INTEGER,
-    level_db      REAL,              -- 1 s level, uncalibrated dB SPL estimate
+    level_db      REAL,              -- 1 s level, unweighted, uncalibrated dB SPL estimate
     peak_db       REAL,
+    level_dba     REAL,              -- 1 s level, A-weighted (how loud it sounds), uncalibrated
+    peak_dba      REAL,
     p_aircraft    REAL,              -- on-device model output (step 5)
     battery_mv    INTEGER,
     rssi          INTEGER,           -- ESP-NOW signal strength at the bridge
@@ -54,12 +56,23 @@ CREATE TABLE IF NOT EXISTS meta (
 """
 
 
+# Columns added after the first release: (table, column, type). connect() adds any that an
+# older database is missing.
+ADDED_COLUMNS = [
+    ("node_reports", "level_dba", "REAL"),
+    ("node_reports", "peak_dba", "REAL"),
+]
+
+
 def connect(path=DB_PATH):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path, timeout=10)
     db.execute("PRAGMA journal_mode=WAL")
     db.executescript(SCHEMA)
+    for table, column, kind in ADDED_COLUMNS:
+        if column not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     return db
 
 

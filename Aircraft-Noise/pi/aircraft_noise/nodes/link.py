@@ -29,14 +29,16 @@ from .serial_protocol import Audio, SerialLines, parse_line
 log = logging.getLogger("bridge-link")
 
 INSERT_REPORT = """INSERT INTO node_reports
-    (ts, node, seq, uptime_ms, level_db, peak_db, p_aircraft, battery_mv, rssi, cal_offset_db)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+    (ts, node, seq, uptime_ms, level_db, peak_db, level_dba, peak_dba, p_aircraft, battery_mv,
+     rssi, cal_offset_db)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
 
 
 def store_report(db, msg, ts):
     node = msg.get("node")
     db.execute(INSERT_REPORT, (ts, node, msg.get("seq"), msg.get("uptime_ms"),
-                               msg.get("level_db"), msg.get("peak_db"), msg.get("p_aircraft"),
+                               msg.get("level_db"), msg.get("peak_db"),
+                               msg.get("level_dba"), msg.get("peak_dba"), msg.get("p_aircraft"),
                                msg.get("battery_mv"), msg.get("rssi"),
                                MIC_CAL_OFFSET_DB.get(node, 0.0)))
 

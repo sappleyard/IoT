@@ -80,7 +80,7 @@ It prints a line like `{"type":"bridge","mac":"7C:DF:A1:12:34:56",...}`. Copy th
 Broadcasts get no retries, though.
 
 Then you'll see one report a second from the bridge's own mic:
-`{"type":"report","node":0,"seq":12,"level_db":41.3,"peak_db":44.0,...}`.
+`{"type":"report","node":0,"seq":12,"level_db":52.1,"peak_db":55.0,"level_dba":41.3,"peak_dba":44.0,...}`.
 Clap and check the level jumps. To calibrate, compare it with a phone sound-meter app and
 put the difference in `MIC_CAL_OFFSET_DB` in [../pi/aircraft_noise/config.py](../pi/aircraft_noise/config.py).
 
@@ -116,7 +116,7 @@ long-range mode. **These must match on all three boards.**
 
 ## How it talks
 
-**Node → bridge** (ESP-NOW, 21 bytes): `NodeReport` in [components/protocol/include/protocol.h](components/protocol/include/protocol.h).
+**Node → bridge** (ESP-NOW, 29 bytes): `NodeReport` in [components/protocol/include/protocol.h](components/protocol/include/protocol.h).
 `seq` counts every packet a node sends, so gaps mean lost packets.
 
 **Bridge → node** (ESP-NOW, 4 bytes): `NodeCommand`, sent right after that node's report while it's still awake.
@@ -124,12 +124,18 @@ long-range mode. **These must match on all three boards.**
 **Bridge → Pi** (USB serial, one line each):
 ```
 {"type":"bridge","mac":"..","channel":1,"long_range":false,"audio":false}   at boot / on "status"
-{"type":"report","node":1,"seq":5,"uptime_ms":..,"level_db":48.2,"peak_db":51.0,"p_aircraft":null,"battery_mv":0,"rssi":-63}
+{"type":"report","node":1,"seq":5,"uptime_ms":..,"level_db":58.2,"peak_db":61.0,"level_dba":48.2,"peak_dba":51.0,"p_aircraft":null,"battery_mv":0,"rssi":-63}
 {"type":"node_seen","node":1,"mac":".."}       first report from a node
 {"type":"queued"|"delivered","node":2,"command":"listen","seconds":90}
 <binary frame>                                   raw audio, between the lines (below)
 ```
-`level_db` is `null` on a heartbeat (the node didn't listen). `p_aircraft` stays `null` until step 5.
+`level_dba`/`peak_dba` are A-weighted: how loud it sounds, the same scale as a phone sound
+meter. `level_db`/`peak_db` are unweighted, so deep rumble (traffic, fans) counts fully and they
+read higher. All four are `null` on a heartbeat (the node didn't listen). `p_aircraft` stays
+`null` until step 5.
+
+**The bridge and the nodes must run firmware with the same `NodeReport` layout**: the bridge
+ignores packets of the wrong size. After changing `protocol.h`, reflash all three.
 
 Audio frame (binary, little-endian): `A5 5A | node u8 | seq u16 | n u16 | n bytes μ-law | CRC-16/CCITT u16`.
 Each frame is 125 ms of 16 kHz audio (n = 2000), with the CRC covering node..payload. The Pi
