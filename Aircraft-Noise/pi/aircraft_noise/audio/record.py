@@ -47,8 +47,9 @@ def main():
                     writers[msg.node].write(msg.pcm, msg.seq, time.time())
                     last_audio = time.monotonic()
                 elif isinstance(msg, dict) and msg.get("type") == "report":
-                    print(f"node {msg['node']}: level {msg['level_db']} dB, "
-                          f"peak {msg['peak_db']} dB (uncalibrated)")
+                    print(f"node {msg['node']}: {msg.get('level_dba')} dB(A) "
+                          f"(peak {msg.get('peak_dba')}), unweighted {msg['level_db']} dB "
+                          f"- uncalibrated")
                 elif isinstance(msg, dict):
                     print(msg)
             # Keep asking until audio flows (the node may still be booting).

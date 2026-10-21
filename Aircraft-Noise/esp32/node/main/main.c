@@ -91,14 +91,17 @@ static uint32_t uptime_ms(void)
     return (uint32_t)((s_previous_wakes_us + esp_timer_get_time()) / 1000);
 }
 
-static void send_report(float level_db, float peak_db)
+// Send a report. meter is NULL for a heartbeat, when the node didn't listen.
+static void send_report(const level_meter_t *meter)
 {
     NodeReport r = {
         .node_id = CONFIG_NODE_ID,
         .seq = s_seq++,
         .uptime_ms = uptime_ms(),
-        .level_db = level_db,
-        .peak_db = peak_db,
+        .level_db = meter ? level_meter_level_db(meter) : NAN,
+        .peak_db = meter ? level_meter_peak_db(meter) : NAN,
+        .level_dba = meter ? level_meter_level_dba(meter) : NAN,
+        .peak_dba = meter ? level_meter_peak_dba(meter) : NAN,
         .p_aircraft = NAN,          // step 5
         .battery_mv = battery_read_mv(),
     };
@@ -160,7 +163,8 @@ static void listen_until(int64_t deadline_us)
         return;   // nothing useful to report; sleep and try again next wake
     }
     uint16_t audio_seq = 0;
-    level_meter_t meter;
+    static level_meter_t meter;
+    level_meter_init(&meter);
 
     while (keep_listening(deadline_us)) {
         level_meter_reset(&meter);
@@ -174,7 +178,7 @@ static void listen_until(int64_t deadline_us)
                 serial_link_send_audio(CONFIG_NODE_ID, audio_seq++, pcm, MIC_BLOCK_SAMPLES);
             }
         }
-        send_report(level_meter_level_db(&meter), level_meter_peak_db(&meter));
+        send_report(&meter);
         handle_commands(&deadline_us, 0);
         handle_serial();
     }
@@ -210,7 +214,7 @@ void app_main(void)
     int64_t deadline_us = 0;
     if (woke_from_sleep) {
         // Heartbeat: tell the bridge we're alive and hear whether the Pi wants us to listen.
-        send_report(NAN, NAN);
+        send_report(NULL);
         handle_commands(&deadline_us, pdMS_TO_TICKS(CONFIG_NODE_REPLY_WAIT_MS));
     } else {
         char mac[RADIO_MAC_STR_LEN], bridge[RADIO_MAC_STR_LEN];

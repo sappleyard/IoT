@@ -138,7 +138,7 @@ static void mic_task(void *arg)
     static float block[MIC_BLOCK_SAMPLES];
     static int16_t pcm[MIC_BLOCK_SAMPLES];
     level_meter_t meter;
-    level_meter_reset(&meter);
+    level_meter_init(&meter);
     uint16_t seq = 0, audio_seq = 0;
     int blocks = 0;
 
@@ -159,6 +159,8 @@ static void mic_task(void *arg)
                 .uptime_ms = (uint32_t)(esp_timer_get_time() / 1000),
                 .level_db = level_meter_level_db(&meter),
                 .peak_db = level_meter_peak_db(&meter),
+                .level_dba = level_meter_level_dba(&meter),
+                .peak_dba = level_meter_peak_dba(&meter),
                 .p_aircraft = NAN,      // step 5
                 .battery_mv = 0,        // USB powered
             };
