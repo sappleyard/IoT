@@ -21,8 +21,9 @@ import sys
 import time
 
 from ..audio.wav_writer import HourlyWavWriter
-from ..config import (AUDIO_DIR, COMMAND_PORT, MIC_CAL_OFFSET_DB, PAUSE_FILE,
-                      RECORD_BRIDGE_AUDIO, SERIAL_BAUD, SERIAL_PORT)
+from ..config import (AUDIO_DIR, COMMAND_PORT, KEEP_LISTENING, LISTEN_RENEW_S, LISTEN_SECONDS,
+                      MIC_CAL_OFFSET_DB, PAUSE_FILE, RECORD_BRIDGE_AUDIO, SERIAL_BAUD,
+                      SERIAL_PORT)
 from ..db import connect
 from .serial_protocol import Audio, SerialLines, parse_line
 
@@ -68,6 +69,7 @@ def main():
     writers = {}          # node -> HourlyWavWriter
     last_commit = time.monotonic()
     last_audio = time.monotonic()   # when recording is on, re-ask if the audio stops
+    next_listen = 0.0               # when to renew "listen" for KEEP_LISTENING nodes
     log.info("taking commands on udp://127.0.0.1:%d; audio recording %s",
              COMMAND_PORT, "on" if args.audio else "off")
 
@@ -108,6 +110,7 @@ def main():
                         log.info("bridge: %s", json.dumps(msg))
                         if msg.get("type") == "bridge":   # the bridge has just restarted
                             start_audio(link)
+                            next_listen = 0.0             # it forgot any queued commands
                 elif msg and sum(c.isprintable() for c in msg) > 0.9 * len(msg):
                     # Firmware log text. (The boot ROM talks at a different baud rate, so its
                     # messages arrive as gibberish: those are skipped.)
@@ -131,6 +134,13 @@ def main():
                 log.warning("no audio for 10 s, sending audio on again")
                 start_audio(link)
                 last_audio = time.monotonic()
+
+            # Keep the chosen nodes listening. The bridge holds each command until that node
+            # checks in, and a node that's already listening just extends its deadline.
+            if KEEP_LISTENING and link.ser is not None and time.monotonic() >= next_listen:
+                for node in KEEP_LISTENING:
+                    link.write_line(f"listen {node} {LISTEN_SECONDS}")
+                next_listen = time.monotonic() + LISTEN_RENEW_S
 
             if time.monotonic() - last_commit >= 1.0:
                 db.commit()
