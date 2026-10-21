@@ -15,7 +15,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from ..config import (AIRCRAFT_JSON, MAX_RANGE_KM, POLL_INTERVAL_S, RECEIVER_JSON,
+from ..config import (AIRCRAFT_JSON, MAX_RANGE_KM, PAUSE_FILE, POLL_INTERVAL_S, RECEIVER_JSON,
                       STALE_AFTER_S)
 from ..db import connect, set_meta
 from ..geo import ground_km
@@ -89,8 +89,20 @@ def main():
     next_report = time.monotonic() + 600
 
     log.info("logging %s to the database", args.source)
+    was_paused = False
     while True:
         started = time.monotonic()
+
+        if PAUSE_FILE.exists():
+            if not was_paused:
+                log.info("paused (%s exists)", PAUSE_FILE)
+                was_paused = True
+            coverage_id = None   # nothing is logged while paused: end the coverage period
+            time.sleep(1)
+            continue
+        if was_paused:
+            log.info("resumed")
+            was_paused = False
 
         if receiver is None and started >= next_receiver_check:
             receiver = read_receiver_location()

@@ -5,7 +5,8 @@
 #   ./flash_via_pi.sh node_a          # build with ./node/flash.sh first, or idf.py -B build_a ... build
 #
 # Copies the build output to the Pi and runs esptool there (in ~/esptool-venv, created on first
-# use). Stops the bridge-link service while flashing, since it holds the serial port.
+# use). Pauses the Pi services while flashing (see PAUSE_FILE in config.py), since the
+# bridge-link service holds the serial port.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -29,10 +30,12 @@ ssh -t "$host" "
   [[ -x ~/esptool-venv/bin/esptool ]] || { python3 -m venv ~/esptool-venv && ~/esptool-venv/bin/pip install -q esptool; }
   port=\$(ls /dev/serial/by-id/*CP210* /dev/serial/by-id/*Espressif* /dev/ttyUSB* /dev/ttyACM* 2>/dev/null | head -1 || true)
   [[ -n \$port ]] || { echo 'No ESP32 found on the Pi (try another cable: some USB-C cables are charge-only).'; exit 1; }
-  stopped=0
-  if systemctl is-active --quiet bridge-link; then sudo systemctl stop bridge-link; stopped=1; fi
+  # Pause the Pi services so the link lets go of the serial port (left paused if it already was).
+  pause=~/aircraft-noise-data/PAUSED
+  was_paused=0; [[ -e \$pause ]] && was_paused=1
+  mkdir -p ~/aircraft-noise-data && touch \$pause && sleep 3
   cd $remote
   ~/esptool-venv/bin/esptool --chip esp32 --port \$port --baud 460800 write-flash @flash_args || rc=\$?
-  [[ \$stopped == 1 ]] && sudo systemctl start bridge-link
+  [[ \$was_paused == 0 ]] && rm -f \$pause
   exit \${rc:-0}
 "

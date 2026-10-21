@@ -21,8 +21,8 @@ import sys
 import time
 
 from ..audio.wav_writer import HourlyWavWriter
-from ..config import (AUDIO_DIR, COMMAND_PORT, MIC_CAL_OFFSET_DB, RECORD_BRIDGE_AUDIO,
-                      SERIAL_BAUD, SERIAL_PORT)
+from ..config import (AUDIO_DIR, COMMAND_PORT, MIC_CAL_OFFSET_DB, PAUSE_FILE,
+                      RECORD_BRIDGE_AUDIO, SERIAL_BAUD, SERIAL_PORT)
 from ..db import connect
 from .serial_protocol import Audio, SerialLines, parse_line
 
@@ -72,7 +72,24 @@ def main():
     # systemd stops services with SIGTERM: exit cleanly so the WAV headers get finalised.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
+        paused = False
         while True:
+            # Paused: close the WAVs and let go of the serial port (e.g. so a board can be flashed).
+            if PAUSE_FILE.exists():
+                if not paused:
+                    log.info("paused (%s exists): serial port released", PAUSE_FILE)
+                    for writer in writers.values():
+                        writer.close()
+                    db.commit()
+                    link.close()
+                    paused = True
+                time.sleep(1)
+                continue
+            if paused:
+                log.info("resumed")
+                paused = False
+                last_audio = time.monotonic()
+
             for raw in link.read_lines():
                 now = time.time()
                 msg = parse_line(raw)

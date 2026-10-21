@@ -41,6 +41,11 @@ The latitude/longitude set readsb's receiver location, so every aircraft gets a 
 (and aircraft further than `MAX_RANGE_KM` aren't logged). install.sh starts both services:
 `adsb-logger` starts logging straight away, and `bridge-link` waits until the bridge ESP32 is plugged in.
 
+**Pausing collection** (no sudo needed): `ssh sebpi@sebpi touch aircraft-noise-data/PAUSED`.
+Both services idle and the link lets go of the serial port, e.g. to plug in and flash a different
+board. Resume with `ssh sebpi@sebpi rm aircraft-noise-data/PAUSED`. Nothing is logged while
+paused, and the labeller knows it (no "no aircraft" labels for that time).
+
 After changing code: run `deploy.sh` again, then `ssh -t sebpi@sebpi sudo systemctl restart adsb-logger bridge-link`.
 
 ## Step 1: ADS-B logging
