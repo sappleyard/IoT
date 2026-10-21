@@ -2,15 +2,15 @@
 //
 // - Receives NodeReports from the remote nodes over ESP-NOW and prints each to the Pi as a
 //   JSON line.
-// - Measures its own mic and prints a report for itself (node 0) every second.
-// - On "audio on", also streams its raw mic audio to the Pi (step 4).
+// - If it has a mic (menuconfig -> "Bridge settings"; currently off), measures it and prints
+//   a report for itself (node 0) every second, and on "audio on" streams its raw audio.
 // - Takes commands from the Pi such as "listen 2 90" and hands each to its node the next
 //   time that node checks in (a sleeping node can only hear us just after it reports).
 //
 // Commands from the Pi, one per line:
 //   listen <node> <seconds>   node listens and reports every second for that long
 //   stop <node>               node goes back to sleep now
-//   audio on | audio off      stream the bridge mic's raw audio
+//   audio on | audio off      stream the bridge mic's raw audio (only with a mic)
 //   status                    print the bridge's MAC and the nodes it has heard from
 
 #include <inttypes.h>
@@ -129,9 +129,11 @@ static void handle_sent(const radio_event_t *e)
     }
 }
 
-// --- The bridge's own mic -------------------------------------------------------------------
+// --- The bridge's own mic (only if it has one) -------------------------------------------------
 
 static volatile bool s_audio_on;
+
+#if CONFIG_BRIDGE_HAS_MIC
 
 static void mic_task(void *arg)
 {
@@ -170,6 +172,7 @@ static void mic_task(void *arg)
         }
     }
 }
+#endif
 
 // --- Commands from the Pi -------------------------------------------------------------------
 
@@ -220,8 +223,12 @@ static void handle_pi_command(const char *line)
     } else if (sscanf(line, "stop %u", &id) == 1) {
         queue_command(id, CMD_STOP, 0);
     } else if (strcmp(line, "audio on") == 0) {
+#if CONFIG_BRIDGE_HAS_MIC
         s_audio_on = true;
         serial_link_print_line("{\"type\":\"audio\",\"on\":true}");
+#else
+        serial_link_print_line("{\"type\":\"error\",\"msg\":\"this bridge has no mic\"}");
+#endif
     } else if (strcmp(line, "audio off") == 0) {
         s_audio_on = false;
         serial_link_print_line("{\"type\":\"audio\",\"on\":false}");
@@ -241,12 +248,14 @@ void app_main(void)
     ESP_ERROR_CHECK(radio_init(on_radio_recv, on_radio_sent));
     print_status();   // includes the MAC address the remote nodes need
 
+#if CONFIG_BRIDGE_HAS_MIC
     if (mic_init() == ESP_OK) {
         // Core 1: core 0 runs Wi-Fi, which must not be starved.
         xTaskCreatePinnedToCore(mic_task, "mic", 6144, NULL, 6, NULL, 1);
     } else {
         serial_link_print_line("{\"type\":\"error\",\"msg\":\"mic failed to start, check wiring\"}");
     }
+#endif
 
     radio_event_t e;
     char line[SERIAL_LINE_MAX];
