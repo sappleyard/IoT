@@ -29,9 +29,12 @@ RECORD_BRIDGE_AUDIO = True   # step 4: save the bridge mic's raw audio as hourly
 # Per-node mic calibration (step 2): a phone sound meter's dB(A) reading minus the node's
 # level_dba, measured side by side. Stored alongside each report, so calibrated level =
 # level_dba + cal_offset_db (and, roughly, the same for level_db).
-#   node 1: 2026-10-21, ~60 dB(A) on the phone vs ~66 from the node -> -6 (phone apps are
-#           only good to about +-5 dB, so treat this as approximate).
-MIC_CAL_OFFSET_DB = {0: 0.0, 1: -6.0, 2: 0.0}
+# The offset belongs to the mic, so it moves if a mic moves to another node.
+#   node 2: 2026-10-21, ~60 dB(A) on the phone vs ~66 from this mic (measured while it was on
+#           node 1, then moved to node 2) -> -6. Phone apps are only good to about +-5 dB.
+#   node 1: its first mic was faulty (all zeros, and it crashed the Pi's USB controller);
+#           calibrate the replacement before trusting its levels.
+MIC_CAL_OFFSET_DB = {0: 0.0, 1: 0.0, 2: -6.0}
 
 # --- Step 4: audio + labelling -----------------------------------------------------------------
 SAMPLE_RATE = 16000
