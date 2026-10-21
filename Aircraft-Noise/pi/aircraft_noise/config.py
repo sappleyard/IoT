@@ -25,6 +25,12 @@ SERIAL_PORT = None         # None = find the ESP32 automatically
 SERIAL_BAUD = 230400       # must match the firmware; ignored by native USB (ESP32-S3)
 COMMAND_PORT = 47000       # UDP port on 127.0.0.1 where the link service takes commands
 RECORD_BRIDGE_AUDIO = False  # step 4: save the bridge mic's raw audio as hourly WAVs (bridge has no mic now)
+# Nodes to keep listening (reporting their level every second) instead of only sending
+# heartbeats: the link re-sends "listen <node> LISTEN_SECONDS" every LISTEN_RENEW_S. A node
+# that's offline just picks the command up when it next checks in.
+KEEP_LISTENING = [1, 2]
+LISTEN_SECONDS = 600
+LISTEN_RENEW_S = 300
 
 # Per-node mic calibration (step 2): a phone sound meter's dB(A) reading minus the node's
 # level_dba, measured side by side. Stored alongside each report, so calibrated level =
