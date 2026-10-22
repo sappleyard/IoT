@@ -12,18 +12,20 @@ DB_PATH = DATA_DIR / "noise.db"
 # e.g. to flash a board:  touch ~/aircraft-noise-data/PAUSED  (rm it to resume).
 PAUSE_FILE = DATA_DIR / "PAUSED"
 
-# The home location (receiver and mics), from pi/location.json: {"lat": .., "lon": ..}.
+# The home location, from pi/location.json: {"lat": .., "lon": .., "alt_m": ..}. alt_m is the
+# height above sea level of the receiver and mic A (ground level + one floor); mic B is one
+# floor higher, which changes slant distances to aircraft by under 0.5% and is ignored.
 # Kept out of git, so the code can be published without revealing where it runs.
 LOCATION_FILE = Path(__file__).resolve().parent.parent / "location.json"
 
 
 def home_location():
-    """(lat, lon) from LOCATION_FILE."""
+    """(lat, lon, alt_m) from LOCATION_FILE."""
     try:
         loc = json.loads(LOCATION_FILE.read_text())
-        return loc["lat"], loc["lon"]
+        return loc["lat"], loc["lon"], loc.get("alt_m", 0.0)
     except (OSError, ValueError, KeyError) as e:
-        raise SystemExit(f'Need {LOCATION_FILE} like {{"lat": 51.5, "lon": -0.1}} ({e})')
+        raise SystemExit(f'Need {LOCATION_FILE} like {{"lat": 51.5, "lon": -0.1, "alt_m": 8}} ({e})')
 
 
 # --- ADS-B logger -------------------------------------------------------------------------
@@ -32,6 +34,11 @@ MAX_RANGE_KM = 60          # don't log aircraft further away than this
 STALE_AFTER_S = 5          # aircraft.json older than this means readsb has stopped
 PASS_RADIUS_KM = 5         # an aircraft coming within this slant range makes a "pass" row
 PASS_END_S = 60            # ...written once it's been outside that range this long
+# Aircraft on the ground (taxiing, or on a helipad) aren't passes. Transponders don't always set
+# the ground flag, so very low and very slow counts as on the ground too. Hovering and landing
+# helicopters above this stay in: at the nearby heliport they're among the loudest events.
+GROUND_MAX_ALT_FT = 100
+GROUND_MAX_SPEED_KT = 30
 
 # --- Bridge link --------------------------------------------------------------------------
 SERIAL_BAUD = 115200

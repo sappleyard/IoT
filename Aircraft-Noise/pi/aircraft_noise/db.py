@@ -14,11 +14,13 @@ CREATE TABLE IF NOT EXISTS aircraft_positions (
     callsign    TEXT,
     lat         REAL NOT NULL,
     lon         REAL NOT NULL,
-    alt_baro_ft INTEGER,         -- pressure altitude, 0 on the ground
+    alt_baro_ft INTEGER,         -- pressure altitude (not corrected for the day's air pressure)
     alt_geom_ft INTEGER,         -- GPS altitude, when the aircraft sends it
     speed_kt    REAL,
     track_deg   REAL,
-    dist_km     REAL             -- ground distance from the receiver
+    dist_km     REAL,            -- ground distance from the receiver
+    category    TEXT,            -- ADS-B emitter category, e.g. A3 airliner, A7 helicopter
+    on_ground   INTEGER          -- 1 = the aircraft reports being on the ground
 );
 CREATE INDEX IF NOT EXISTS aircraft_positions_ts ON aircraft_positions (ts);
 
@@ -30,11 +32,13 @@ CREATE TABLE IF NOT EXISTS passes (
     first_ts         REAL NOT NULL,   -- first and last position inside the radius
     last_ts          REAL NOT NULL,
     closest_ts       REAL NOT NULL,   -- when it was closest (sound arrives slant/343 s later)
-    closest_slant_km REAL NOT NULL,   -- straight-line distance at that moment
+    closest_slant_km REAL NOT NULL,   -- straight-line distance from the receiver at that moment
     closest_dist_km  REAL,            -- ground distance
-    closest_alt_ft   INTEGER,
+    closest_alt_ft   INTEGER,         -- above sea level
+    alt_is_gps       INTEGER,         -- 1 = GPS altitude; 0 = pressure altitude (uncorrected)
     speed_kt         REAL,
-    track_deg        REAL
+    track_deg        REAL,
+    category         TEXT             -- ADS-B emitter category (A7 = helicopter)
 );
 CREATE INDEX IF NOT EXISTS passes_closest_ts ON passes (closest_ts);
 
