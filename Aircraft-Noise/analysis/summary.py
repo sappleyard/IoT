@@ -97,12 +97,13 @@ def load(db):
     coverage = np.array(db.execute("SELECT start_ts, end_ts FROM logger_coverage "
                                    "ORDER BY start_ts").fetchall(), dtype=float).reshape(-1, 2)
     # Times when any airborne aircraft was within QUIET_KM slant range (for the quiet baseline).
-    rx_alt = float((db.execute("SELECT value FROM meta WHERE key = 'receiver_alt_m'").fetchone()
-                    or [0])[0])
+    meta = dict(db.execute("SELECT key, value FROM meta").fetchall())
+    rx_alt = float(meta.get("receiver_alt_m", 0))
+    geoid_ft = float(meta.get("geoid_m", 0)) / 0.3048   # GPS altitudes are above the ellipsoid
     near = np.array(db.execute(
-        "SELECT ts, dist_km, coalesce(alt_geom_ft, alt_baro_ft, 0) FROM aircraft_positions "
-        "WHERE dist_km < ? AND NOT coalesce(on_ground, 0) ORDER BY ts", (QUIET_KM,)).fetchall(),
-        dtype=float).reshape(-1, 3)
+        "SELECT ts, dist_km, coalesce(alt_geom_ft - ?, alt_baro_ft, 0) FROM aircraft_positions "
+        "WHERE dist_km < ? AND NOT coalesce(on_ground, 0) ORDER BY ts",
+        (geoid_ft, QUIET_KM)).fetchall(), dtype=float).reshape(-1, 3)
     slant = np.hypot(near[:, 1], (near[:, 2] * 0.3048 - rx_alt) / 1000)
     return mics, passes, coverage, near[slant < QUIET_KM, 0]
 
