@@ -12,14 +12,12 @@ Home IoT projects. Each project lives in its own subfolder.
 ## Projects
 
 - [ADS-B-Test/](ADS-B-Test/): receive aircraft ADS-B signals on the Pi with readsb and read them from Python.
-- [Aircraft-Noise/](Aircraft-Noise/): three ESP32 + INMP441 mic nodes (one bridge on the Pi's USB, two remote
-  over ESP-NOW) plus Pi services that log ADS-B and node reports to SQLite, record audio and label it from
-  the flight log. `pi/` is Python (deployed with `pi/deploy.sh`, data in `~/aircraft-noise-data` on the Pi);
-  `esp32/` is ESP-IDF 5.3+ (`bridge/`, `node/`, shared `components/`). Its logger imports `Aircraft` from
-  `ADS-B-Test/adsb_monitor.py`, so keep that class's interface stable.
-- [Sonos-Test/](Sonos-Test/): play a clip on the Sonos speaker (Kitchen, Era 100 SL, 192.168.1.178) from the Pi through
-  its local API as an audio clip that plays over the music (UPnP replace-and-restore as fallback); the
-  Pi serves the file over HTTP and the speaker fetches it. Copied to `~/sonos-test` on the Pi.
+- [Aircraft-Noise/](Aircraft-Noise/): two ESP32 + INMP441 mic nodes send per-second levels (LAeq, LAmax,
+  7 octave bands; never audio) over ESP-NOW long range to a bridge ESP32 on the Pi's USB; Pi services
+  log those and ADS-B positions to SQLite (`~/aircraft-noise-data/noise.db`). Kept deliberately small:
+  `esp32/` (ESP-IDF 5.5, one firmware for both nodes, mics identified by MAC) and `pi/` (four Python
+  files). The README is the single source of docs. Old data is archived (git-ignored) in
+  `Aircraft-Noise/data-archive/`. Privacy matters to the user: don't add audio recording.
 
 ## Workflow
 

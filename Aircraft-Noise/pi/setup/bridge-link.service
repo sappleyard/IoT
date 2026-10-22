@@ -1,0 +1,13 @@
+[Unit]
+Description=Aircraft-Noise: store mic levels relayed by the bridge ESP32
+
+[Service]
+User=@USER@
+WorkingDirectory=@PI_DIR@
+ExecStart=/usr/bin/python3 -m aircraft_noise.bridge_link
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

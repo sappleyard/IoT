@@ -1,3 +1,0 @@
-# Node B (board MAC 28:05:A5:35:B6:50). Sends to the bridge (the ESP32 on the Pi), whose MAC this is.
-CONFIG_NODE_ID=2
-CONFIG_NODE_BRIDGE_MAC="28:05:A5:34:6B:38"
