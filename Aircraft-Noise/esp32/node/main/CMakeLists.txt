@@ -1,3 +1,2 @@
-idf_component_register(SRCS "main.c" "battery.c"
-                       INCLUDE_DIRS "."
-                       PRIV_REQUIRES protocol mic radio serial_link esp_timer esp_adc)
+idf_component_register(SRCS "main.c" "mic.c"
+                       PRIV_REQUIRES common esp_driver_i2s esp_timer)

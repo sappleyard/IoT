@@ -12,3 +12,6 @@ sdkconfig
 sdkconfig.old
 managed_components/
 dependencies.lock
+
+# Archived databases (contain the receiver location; too big for GitHub)
+Aircraft-Noise/data-archive/

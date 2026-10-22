@@ -1,7 +1,10 @@
-# Settings for every target. Target-specific ones are in sdkconfig.defaults.<target>.
+# ESP32 dev boards with 4 MB Boya flash and a CH340 USB chip (default 115200 baud).
+CONFIG_IDF_TARGET="esp32"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_SPI_FLASH_SUPPORT_BOYA_CHIP=y
 
-# Keep log output down to warnings, so it doesn't crowd the JSON lines going to the Pi.
+# Quiet logs, and restart if the main loop ever hangs for 10 s.
 CONFIG_LOG_DEFAULT_LEVEL_WARN=y
-
-CONFIG_FREERTOS_HZ=1000
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
