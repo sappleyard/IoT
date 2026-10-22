@@ -54,10 +54,12 @@ BANDS_HZ = [63, 125, 250, 500, 1000, 2000, 4000]   # octave-band centres, as the
 # node's levels to correct that mic; it belongs to the mic, so move it if a mic moves.
 # Both are first estimates, recalibrate once the nodes are in their cases (see README):
 #   B6:50's mic: -6, against a phone sound-meter app on 2026-10-21 (phones: about +-5 dB)
-#   E0:EC's mic (the former bridge mic): -7, from reading 1 dB above B6:50's side by side
+#   E0:EC's mic: -6, the same: side by side on 2026-10-22 the two read within 0.1 dB(A) of each
+#   other (48 ten-second windows, correlation 0.99). Octave bands differed by up to ~2 dB, most
+#   likely room acoustics at the two spots; check with pink noise before correcting bands.
 MICS = {
     "28:05:A5:35:B6:50": {"name": "A", "cal_db": -6.0,
                           "location": "Living room, north-facing window, floor 2"},
-    "28:05:A5:35:E0:EC": {"name": "B", "cal_db": -7.0,
+    "28:05:A5:35:E0:EC": {"name": "B", "cal_db": -6.0,
                           "location": "Bedroom, south-facing window, floor 3"},
 }
