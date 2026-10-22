@@ -34,11 +34,13 @@
 <!-- ============================ MAIN TEXT ============================ -->
 <div>
 <h1>Aircraft Noise: design summary</h1>
-<p class="sub">What changed on 22 October 2026, why, and what's left &nbsp;·&nbsp; DESE71003 Sensing &amp; IoT coursework</p>
+<p class="sub">Decisions and changes up to 22 October 2026, why, and what's left &nbsp;·&nbsp; DESE71003 Sensing &amp; IoT coursework</p>
 
-<div class="goal"><b>Goal.</b> Two microphones hear an aircraft; the ADS-B receiver identifies it (the aircraft whose
-sound would arrive at that moment); the Sonos announces it with its route. <b>Only aircraft that were actually heard are
-announced</b> (v1), and later only unusual ones, judged from how often each airline, type and route is seen (v2).</div>
+<div class="goal"><b>Goal.</b> Two microphones hear an aircraft; a classifier trained on the octave-band levels decides
+it's an aircraft; the ADS-B receiver identifies which one (the aircraft whose sound would arrive at that moment); the
+Sonos announces it with its route. <b>Only aircraft that were actually heard are announced.</b> v1 announces every heard
+flight; v2 announces only unique ones, judged from how often each airline, type and route appears. Data is collected
+first; v1 is built once collection is complete.</div>
 
 <h2>1. Where the system stands (collection goes live tonight)</h2>
 <ul>
@@ -48,8 +50,9 @@ announced</b> (v1), and later only unusual ones, judged from how often each airl
     aircraft position within 60 km plus one <b>pass</b> row per aircraft within 5 km (the ground truth the mics are
     checked against). Everything goes into one SQLite database. <code>analysis/summary.py</code> produces the
     time-series figures. The software flow is in Appendix A.</li>
-  <li><b>Fresh start:</b> the first 2.2 days of data are archived on the Mac (outside git); the 27 h of raw bridge audio
-    from the first trial were deleted, not archived. Code went from about 60 files to 27, with one README.</li>
+  <li><b>Fresh start:</b> the first 2.2 days of data are archived on the Mac, outside git, as the original database plus
+    CSV copies (they open in Numbers or Excel) and a README explaining every column. The 27 h of raw bridge audio from
+    the first trial were deleted, not archived. Code went from about 60 files to 27, with one README.</li>
 </ul>
 
 <h2>2. Recording efficiency: from audio to levels</h2>
@@ -87,21 +90,26 @@ configured and 17 with one setting changed; and the <b>USB serial link</b> at 11
 the air absorbs a little more with every kilometre:</p>
 <div class="eq">L<sub>A,max</sub>(r) = L<sub>1</sub> − 20 log<sub>10</sub>(r / 1 km) − α (r − 1 km)</div>
 <p><b>r</b> is the slant distance at the aircraft's closest point (from ADS-B), <b>L<sub>1</sub></b> the level at 1 km
-and <b>α</b> the air absorption in dB/km. Both are fitted per mic, by least squares, to the passes that clearly rose above
-the background, after subtracting the background's energy (as in ISO 1996). Without that step, distant passes whose
-"peak" is really background noise flatten the curve. The sound arrives <b>r / 343 m/s</b> after the closest moment
-(3.2 s at 1.1 km), so that's where each pass's level is read. The model is used three ways:</p>
+and <b>α</b> the air absorption in dB/km. Both are fitted per mic, by least squares, to the fixed-wing passes, after
+subtracting the background's energy (as in ISO 1996), and only over the distances where the mic hears at least 90% of
+passes. Further out, only passes that happened to be louder get heard, which flattens the curve and hides the
+absorption. The sound arrives <b>r / 343 m/s</b> after the closest moment (3.2 s at 1.1 km), so that's where each
+pass's level is read. The model is used three ways:</p>
 <ul>
-  <li><b>Predict and emulate before collecting:</b> six hours of synthetic data were generated from the model with known
-    values (α = 4.0 dB/km). The analysis recovered α = 4.1–4.4 dB/km, which checked the whole pipeline end to end.</li>
-  <li><b>Attribution:</b> the sound delay tells the event detector which aircraft a rise in level belongs to.</li>
+  <li><b>Predict and emulate before collecting:</b> synthetic data was generated from the model with known values
+    (α = 4.0 dB/km) for three random datasets and a full week. The analysis recovered the 1 km level to within 0.2 dB
+    and α at 4.2–4.5 dB/km, which checked the whole pipeline end to end, and a week of both mics runs in 8 s.</li>
+  <li><b>Attribution:</b> the sound delay tells v1 which aircraft a detected sound belongs to.</li>
   <li><b>Insight:</b> the fitted curve and its scatter show how far away planes are still audible at each mic, and which
     aircraft are louder than the model predicts (a feature for v2's "special aircraft").</li>
 </ul>
 <p class="small">Air absorption rises steeply with frequency (ISO 9613, 10 °C, 70% humidity: about 0.1, 0.4, 1.0, 1.9,
 3.7, 9.7 and 33 dB/km in the 63 Hz to 4 kHz octaves), so a pass sounds more muffled the further away it is. The octave
 bands let that be tested directly: the high bands of a pass should fall faster with distance than the low ones.
-Simplifications: no Doppler, no ground reflection, and one source level per aircraft type.</p>
+Simplifications: no Doppler, no ground reflection, and one source level per aircraft type. Distances use GPS altitude,
+which 847 of 850 nearby aircraft sent in the trial, and the receiver's height (about 8 m above sea level). There's no
+barometric sensor: the few pressure-altitude passes are flagged, and could be corrected later from Heathrow's archived
+weather reports. Aircraft on the ground are excluded, and helicopters are kept out of the fit.</p>
 </div>
 
 <!-- ============================ PAGE 2 ============================ -->
@@ -111,17 +119,18 @@ Simplifications: no Doppler, no ground reflection, and one source level per airc
   <tr><th>Stage</th><th>Driven by</th><th>What it does</th></tr>
   <tr><td><b>Pass records</b></td><td>ADS-B</td><td>Every aircraft within 5 km, heard or not: the ground truth. Lets the
     report measure what the mics <i>missed</i> (detection rate by distance, altitude and window), and labels the training data.</td></tr>
-  <tr><td><b>Heard events</b> (to build)</td><td>The mics</td><td>A rise in level above the background, matched to the pass
-    whose sound would arrive then. v1 uses a rule; v2 a model trained on the octave bands.</td></tr>
+  <tr><td><b>Heard events</b> (v1, built after collection)</td><td>The mics</td><td>The <b>classifier</b>, trained on the
+    octave-band levels labelled from the pass records, decides each moment is an aircraft; the detection is matched to
+    the pass whose sound would arrive then.</td></tr>
   <tr><td><b>Flight info</b> (to build)</td><td>Heard events only</td><td>Route by callsign from the free, offline
     <b>VRS standing data</b> (updated daily); aircraft type, owner and photo from <b>adsbdb</b> (free, cached). No
     FlightAware or feeding for now: nothing is looked up for flights that weren't heard.</td></tr>
   <tr><td><b>Announcement</b> (to build)</td><td>Heard events only</td><td>Spoken on the Sonos over whatever is playing
-    (method already proven in <code>Sonos-Test</code>). v1: every heard flight, within quiet hours. v2: only the rare ones.</td></tr>
+    (method already proven in <code>Sonos-Test</code>). v1: every heard flight, within quiet hours. v2: unique aircraft only.</td></tr>
 </table>
 <p>About <b>460 aircraft a day</b> pass within 1.5 km, roughly <b>one every two minutes</b> in daytime, almost all on the
-Heathrow approach at about 3,250 ft. That makes v2's rarity filter essential, and gives plenty of training examples
-within a week. British Airways alone made 454 of 1,044 close passes in the trial, while 25 airlines appeared only once.</p>
+Heathrow approach at about 3,250 ft. That gives plenty of training examples within a couple of weeks, and makes v2's
+unique-only filter essential for everyday use. British Airways alone made 454 of 1,044 close passes in the trial, while 25 airlines appeared only once.</p>
 
 <h2>6. Data, privacy and security</h2>
 <ul>
@@ -148,19 +157,24 @@ within a week. British Airways alone made 454 of 1,044 close passes in the trial
     absolute offset from a phone meter, and a check on whether the cases colour any octave band.</li>
 </ul>
 
-<h2>8. v1 then v2</h2>
-<p><b>v1</b> (working system): a rule finds heard aircraft (level rise above the background at the expected arrival
-time), looks up the route and announces every heard flight. <b>v2</b> (learning goal): a classifier trained on the
-octave-band levels, labelled automatically from the pass records, decides "aircraft or not". Its precision and recall are
-compared with v1's rule, and only rare aircraft are announced, ranked by how often each airline, type and route appears
-in the pass history. Both are measured against the same ADS-B ground truth, which gives the report its central analysis.</p>
+<h2>8. Build plan: collect, then v1, then v2</h2>
+<p><b>Collection first</b> (about two weeks from 23 October): both mics and ADS-B, with nothing else to build meanwhile.
+<b>v1</b> is built once collection is complete, so the classifier trains on the whole dataset. A <b>classifier on the
+octave-band levels</b> (with LAeq and LAmax, over a short window around each second) decides "aircraft or not". Its
+labels come automatically from the pass records: <i>aircraft</i> when a close pass's sound was arriving, <i>no
+aircraft</i> when nothing was within 15 km for a minute either side, and ambiguous moments dropped. It's tested on
+held-out days against the ADS-B ground truth (precision and recall, by distance and by mic), with a simple
+level-threshold rule as the comparison baseline in the report. Each detection is matched to its pass by the sound
+delay, the route and aircraft are looked up, and every heard flight is announced. <b>v2's</b> only planned change so
+far: announce <b>unique aircraft only</b>, judged by how rarely the airline, type, route and registration appear in the
+pass history.</p>
 <p class="small">The full decision log is in Appendix B, and the remaining work, in order, is in Appendix C.</p>
 </div>
 
 <!-- ============================ APPENDIX A ============================ -->
 <div class="page">
 <h2 style="margin-top:0">Appendix A. Software workflow</h2>
-<p class="small">Solid boxes run from tonight. Dashed boxes are still to build (Appendix C).</p>
+<p class="small">Solid boxes run from tonight. Dashed boxes are built after data collection (Appendix C).</p>
 <svg viewBox="0 0 760 640" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11">
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -235,8 +249,8 @@ in the pass history. Both are measured against the same ADS-B ground truth, whic
   <!-- To build -->
   <path class="gline" d="M480,392 L540,428"/>
   <rect class="todo" x="320" y="430" width="430" height="48" rx="6"/>
-  <text x="330" y="450" class="t">Event detector: v1 rule, v2 model</text>
-  <text x="330" y="467">level rise vs background → matched to a pass by sound delay → "heard"</text>
+  <text x="330" y="450" class="t">v1 detection: classifier on octave bands</text>
+  <text x="330" y="467">"aircraft" moments → matched to a pass by sound delay → heard flight</text>
 
   <path class="gline" d="M535,478 L535,500"/>
   <rect class="todo" x="320" y="502" width="430" height="44" rx="6"/>
@@ -246,11 +260,11 @@ in the pass history. Both are measured against the same ADS-B ground truth, whic
   <path class="gline" d="M535,546 L535,568"/>
   <rect class="todo" x="320" y="570" width="430" height="44" rx="6"/>
   <text x="330" y="589" class="t">Announcer → Sonos</text>
-  <text x="330" y="605">speech clip over the music · v1 every heard flight · v2 rare ones only</text>
+  <text x="330" y="605">speech clip over the music · v1 every heard flight · v2 unique only</text>
 
   <rect class="todo" x="10" y="520" width="280" height="44" rx="6"/>
-  <text x="20" y="539" class="t">Classifier on octave bands (v2)</text>
-  <text x="20" y="555">reads noise.db: levels labelled by the passes</text>
+  <text x="20" y="539" class="t">Classifier training (after collection)</text>
+  <text x="20" y="555">levels labelled by the passes; tested vs ADS-B</text>
   <path class="gline" d="M290,542 L320,460"/>
 
   <rect class="todo" x="10" y="580" width="280" height="44" rx="6"/>
@@ -279,15 +293,16 @@ in the pass history. Both are measured against the same ADS-B ground truth, whic
   <tr><td>ADS-B antenna stays indoors</td><td>The trial showed complete coverage to 60 km in all 12 directions, with positions every ~1 s for nearby aircraft; outdoors would only add far-away range.</td></tr>
   <tr><td>Pass records (ADS-B) and heard events (mics)</td><td>Passes give the ground truth needed to measure misses and to label training data; mic events drive the lookups and announcements.</td></tr>
   <tr><td>Routes from VRS standing data; aircraft from adsbdb</td><td>Free, tested (BAW906 → Heathrow–Frankfurt), and VRS works offline. FlightAware's free allowance ($5–10/month) wouldn't cover ~460 passes a day; no feeding for now.</td></tr>
-  <tr><td>v1 rule, then v2 model</td><td>A working system first; the model is the learning goal, judged against the rule on the same ground truth.</td></tr>
-  <tr><td>v2 announces rare aircraft only</td><td>About one pass every two minutes in daytime would make "announce everything" unbearable; rarity is learned from the pass history.</td></tr>
+  <tr><td>v1 uses the classifier, built after collection</td><td>The classifier on octave bands is the learning goal and the core of v1; building it once collection is complete means it trains and is tested on the full dataset. A simple level-threshold rule is kept only as a comparison baseline.</td></tr>
+  <tr><td>v2: announce unique aircraft only</td><td>About one pass every two minutes in daytime makes "announce everything" too much for daily use; uniqueness is learned from the pass history. The only v2 change planned so far.</td></tr>
   <tr><td>Receiver height in slant distance</td><td>The Pi and mic A are one floor up (about 8 m above sea level, set in <code>location.json</code>); mic B is one floor higher, which changes distances to aircraft by under 0.5%.</td></tr>
-  <tr><td>GPS altitude first; pressure altitude flagged</td><td>847 of the 850 aircraft within 5 km in the trial sent GPS altitude. Pressure altitude isn't corrected for the day's pressure (about ±30 ft per hPa), so passes record which was used. Pressure can be corrected afterwards from Heathrow's archived METAR reports, or from the planned barometric sensor.</td></tr>
+  <tr><td>GPS altitude first; pressure altitude flagged</td><td>847 of the 850 aircraft within 5 km in the trial sent GPS altitude. Pressure altitude isn't corrected for the day's pressure (about ±30 ft per hPa), so passes record which was used. Pressure can be corrected afterwards from Heathrow's archived METAR weather reports if ever needed.</td></tr>
+  <tr><td>No barometric sensor (for now)</td><td>With GPS altitude on nearly every nearby aircraft it adds little; the classifier never uses altitude, and stored raw altitudes allow later correction.</td></tr>
   <tr><td>Aircraft on the ground aren't passes</td><td>Taxiing aircraft and helicopters on the nearby heliport pad would pollute the labels and the fit. Flagged on-ground, or below 100 ft and slower than 30 kt, is excluded; hovering and landing helicopters stay in, and their ADS-B category keeps them out of the fixed-wing propagation fit.</td></tr>
   <tr><td>Analysis built for weeks of data</td><td>Sorted arrays and binary search: a week of both mics (1.2 M rows, 3,668 passes) runs in 8 s with 460 MB, where the first version would have needed tens of GB.</td></tr>
   <tr><td>Strict "quiet" baseline</td><td>No aircraft within 15 km slant for a minute either side, and the ADS-B logger running: planes at 3–5 km no longer count as quiet.</td></tr>
   <tr><td>Fit only where detection is complete</td><td>Near the edge of hearing only the louder passes get heard, which biased the absorption low. Fitting only where the mic hears at least 90% of passes recovered the emulated values on three random datasets.</td></tr>
-  <tr><td>Fresh database; first run archived</td><td>A clean dataset with one schema; the 2.2-day trial is kept on the Mac (outside git) for reference.</td></tr>
+  <tr><td>Fresh database; first run archived</td><td>A clean dataset with one schema; the 2.2-day trial is kept on the Mac (outside git) as the original database plus readable CSV files and a README.</td></tr>
   <tr><td>Location in a git-ignored file</td><td>Code and data can be published on GitHub without revealing the home.</td></tr>
   <tr><td>Publishing API and dashboard later</td><td>They belong to the deployment section, once the model exists.</td></tr>
   <tr><td>Simplify: ~60 files → 27, one README</td><td>Every one-off test tool, unused option and extra board type removed; easier to reason about and to report.</td></tr>
@@ -318,29 +333,39 @@ in the pass history. Both are measured against the same ADS-B ground truth, whic
     involving people's data.</li>
   <li><b>Keep a note of generative AI use</b> (Claude Code for code and design discussion), for the required notice.</li>
 </ol>
-<h3>While the data collects (weeks 2–4)</h3>
+<h3>During collection (about two weeks, to around 6 November)</h3>
 <ol start="9">
-  <li><b>Event detector (v1):</b> per mic, find rises in level above the background; match each to the pass whose sound
-    would arrive then; mark the pass as heard. Tune the threshold on the first week's data.</li>
-  <li><b>Flight info:</b> download the VRS route files weekly; look up the route of each heard flight by callsign; aircraft
-    type and owner from adsbdb, cached per aircraft.</li>
-  <li><b>Announcer (v1):</b> reuse the Sonos-Test clip method; generate the spoken sentence; quiet hours and a minimum gap.</li>
-  <li><b>Classifier (v2):</b> build features from the octave bands around each moment, with labels from the passes
-    (aircraft, no aircraft, ambiguous dropped); train and compare with the rule (precision, recall).</li>
-  <li><b>Rarity (v2):</b> score each heard flight by how often its airline, type and route appear; announce only rare ones.</li>
+  <li><b>Let it run.</b> Glance at the health log every few days, and after the first week run
+    <code>analysis/summary.py</code> to check the data looks right: levels, close passes, lost packets, mic faults.
+    Fix anything odd early. There's nothing else to build during collection.</li>
 </ol>
-<h3>Deployment and report (weeks 5–7; deadline 10 December, 4 pm)</h3>
+<h3>After collection: v1</h3>
+<ol start="10">
+  <li><b>Train the classifier:</b> features from the octave bands, LAeq and LAmax over a short window around each
+    second; labels from the passes (aircraft, no aircraft, ambiguous dropped). Hold back some days for testing, and
+    report precision and recall against ADS-B, by distance and by mic, alongside the simple threshold baseline.</li>
+  <li><b>Match detections to flights:</b> each detected aircraft sound goes to the pass whose sound would arrive then.</li>
+  <li><b>Flight info:</b> download the VRS route files weekly; route by callsign for each heard flight; aircraft type
+    and owner from adsbdb, cached per aircraft.</li>
+  <li><b>Announcer:</b> reuse the Sonos-Test clip method; generate the spoken sentence; quiet hours and a minimum gap.
+    Then run v1 live: classifier, match, look up, announce.</li>
+</ol>
+<h3>v2</h3>
 <ol start="14">
+  <li><b>Unique aircraft only:</b> score each heard flight by how rarely its airline, type, route and registration
+    appear in the pass history, and announce only the unique ones.</li>
+</ol>
+<h3>Deployment and report (deadline 10 December, 4 pm)</h3>
+<ol start="15">
   <li><b>Publishing API and dashboard</b> on the Pi (read-only JSON and a web page: live levels, recent heard flights).</li>
-  <li><b>Analysis</b> on at least a week of data: run <code>analysis/summary.py</code>, plus detection performance,
-    announcement delay, packet loss and uptime, data volume, scalability, security and privacy.</li>
+  <li><b>Analysis:</b> <code>analysis/summary.py</code> on the full dataset, plus classifier performance, announcement
+    delay, packet loss and uptime, data volume, scalability, security and privacy.</li>
   <li><b>Publish the code and data on GitHub:</b> export the dataset with distances and bearings only (no coordinates).</li>
   <li><b>Write the report</b> (cover page and 6 pages, IEEE or ACM two-column) and record the 5-minute video. Include the
     AI-use notice.</li>
 </ol>
-<p class="small">Suggested dates: collecting from 23 Oct · one week of data by 30 Oct · detector and flight info by 7 Nov
-· announcer by 14 Nov · classifier and rarity by 21 Nov · API, dashboard and analysis by 28 Nov · report and video
-by 7 Dec.</p>
+<p class="small">Suggested dates: collecting 23 Oct to about 6 Nov · v1 (classifier, matching, flight info, announcer) by
+20 Nov · v2 by 25 Nov · API, dashboard and analysis by 30 Nov · report and video by 7 Dec.</p>
 </div>
 </body>
 </html>
