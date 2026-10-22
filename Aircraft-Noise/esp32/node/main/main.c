@@ -26,6 +26,7 @@ static void on_sent(bool delivered)
 void app_main(void)
 {
     radio_init(NULL, on_sent);
+    radio_add_peer(BRIDGE_MAC);
     ESP_ERROR_CHECK(mic_init());
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
     s_last_ack_us = esp_timer_get_time();

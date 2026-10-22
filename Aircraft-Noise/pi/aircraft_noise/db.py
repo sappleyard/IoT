@@ -22,6 +22,22 @@ CREATE TABLE IF NOT EXISTS aircraft_positions (
 );
 CREATE INDEX IF NOT EXISTS aircraft_positions_ts ON aircraft_positions (ts);
 
+-- One row per aircraft that came within PASS_RADIUS_KM (slant range) of home: the ground
+-- truth that mic detections are checked against, and the training labels.
+CREATE TABLE IF NOT EXISTS passes (
+    hex              TEXT NOT NULL,
+    callsign         TEXT,
+    first_ts         REAL NOT NULL,   -- first and last position inside the radius
+    last_ts          REAL NOT NULL,
+    closest_ts       REAL NOT NULL,   -- when it was closest (sound arrives slant/343 s later)
+    closest_slant_km REAL NOT NULL,   -- straight-line distance at that moment
+    closest_dist_km  REAL,            -- ground distance
+    closest_alt_ft   INTEGER,
+    speed_kt         REAL,
+    track_deg        REAL
+);
+CREATE INDEX IF NOT EXISTS passes_closest_ts ON passes (closest_ts);
+
 -- Periods when the ADS-B logger was running with fresh data. Outside them "no aircraft
 -- seen" means nothing, so labelling must only trust these periods.
 CREATE TABLE IF NOT EXISTS logger_coverage (

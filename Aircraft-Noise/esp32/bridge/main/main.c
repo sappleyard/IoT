@@ -1,14 +1,15 @@
 // Bridge: the ESP32 plugged into the Pi. Relays every LevelsPacket from the nodes to the Pi
 // as one JSON line on USB serial, tagged with the sender's MAC and signal strength:
 //
-//   {"type":"levels","mac":"28:05:A5:35:E0:EC","rssi":-71,"seq":812,"uptime_ms":812345,
+//   {"type":"levels","mac":"28:05:a5:35:e0:ec","rssi":-71,"seq":812,"uptime_ms":812345,
 //    "flags":0,"laeq":48.2,"lamax":51.0,"bands":[55.1,52.3,49.0,45.2,41.7,38.0,30.4]}
 //
 // Once a minute it also prints a heartbeat, so the Pi can tell it's alive:
 //
-//   {"type":"bridge","mac":"28:05:A5:34:6B:38","uptime_ms":60001,"relayed":118,"rejected":0,"dropped":0}
+//   {"type":"bridge","mac":"28:05:a5:34:6b:38","uptime_ms":60001,"relayed":118,"rejected":0,"dropped":0}
 //
-// It restarts itself if the main loop hangs (task watchdog).
+// Only the nodes listed in protocol.h are accepted (their packets are encrypted, and anything
+// else is counted as rejected). It restarts itself if the main loop hangs (task watchdog).
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -33,11 +34,21 @@ typedef struct {
 static QueueHandle_t s_queue;
 static volatile uint32_t s_relayed, s_rejected, s_dropped;
 
+static bool is_node(const uint8_t mac[6])
+{
+    for (int i = 0; i < NUM_NODES; i++) {
+        if (memcmp(mac, NODE_MACS[i], 6) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Runs in the Wi-Fi task: check and copy only.
 static void on_recv(const uint8_t mac[6], const uint8_t *data, int len, int rssi)
 {
-    if (len != sizeof(LevelsPacket) || data[0] != PROTOCOL_VERSION) {
-        s_rejected++;   // not a node, or a node running different firmware
+    if (!is_node(mac) || len != sizeof(LevelsPacket) || data[0] != PROTOCOL_VERSION) {
+        s_rejected++;   // a stranger, or a node running different firmware
         return;
     }
     received_t r = {.rssi = rssi};
@@ -72,6 +83,9 @@ void app_main(void)
 {
     s_queue = xQueueCreate(32, sizeof(received_t));
     radio_init(on_recv, NULL);
+    for (int i = 0; i < NUM_NODES; i++) {
+        radio_add_peer(NODE_MACS[i]);   // needed to decrypt their packets
+    }
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
     print_heartbeat();
 

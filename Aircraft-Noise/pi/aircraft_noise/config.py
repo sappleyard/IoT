@@ -1,5 +1,6 @@
 """Every setting for the Pi programs, in one place."""
 
+import json
 import os
 from pathlib import Path
 
@@ -11,11 +12,26 @@ DB_PATH = DATA_DIR / "noise.db"
 # e.g. to flash a board:  touch ~/aircraft-noise-data/PAUSED  (rm it to resume).
 PAUSE_FILE = DATA_DIR / "PAUSED"
 
+# The home location (receiver and mics), from pi/location.json: {"lat": .., "lon": ..}.
+# Kept out of git, so the code can be published without revealing where it runs.
+LOCATION_FILE = Path(__file__).resolve().parent.parent / "location.json"
+
+
+def home_location():
+    """(lat, lon) from LOCATION_FILE."""
+    try:
+        loc = json.loads(LOCATION_FILE.read_text())
+        return loc["lat"], loc["lon"]
+    except (OSError, ValueError, KeyError) as e:
+        raise SystemExit(f'Need {LOCATION_FILE} like {{"lat": 51.5, "lon": -0.1}} ({e})')
+
+
 # --- ADS-B logger -------------------------------------------------------------------------
 AIRCRAFT_JSON = "/run/readsb/aircraft.json"   # rewritten by readsb every second
-RECEIVER_JSON = "/run/readsb/receiver.json"   # holds the receiver location
 MAX_RANGE_KM = 60          # don't log aircraft further away than this
 STALE_AFTER_S = 5          # aircraft.json older than this means readsb has stopped
+PASS_RADIUS_KM = 5         # an aircraft coming within this slant range makes a "pass" row
+PASS_END_S = 60            # ...written once it's been outside that range this long
 
 # --- Bridge link --------------------------------------------------------------------------
 SERIAL_BAUD = 115200

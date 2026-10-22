@@ -6,8 +6,14 @@
 
 #define RADIO_CHANNEL 1   // Wi-Fi channel all three boards use (ESP-NOW, long-range mode)
 
-// The bridge, the ESP32 plugged into the Pi. Nodes send straight to it.
+// The boards. Traffic is encrypted, so the bridge and the nodes must know each other in
+// advance: a new node needs its MAC added here (and to MICS on the Pi), then a reflash.
 static const uint8_t BRIDGE_MAC[6] = {0x28, 0x05, 0xA5, 0x34, 0x6B, 0x38};
+#define NUM_NODES 2
+static const uint8_t NODE_MACS[NUM_NODES][6] = {
+    {0x28, 0x05, 0xA5, 0x35, 0xE0, 0xEC},   // node A: living room
+    {0x28, 0x05, 0xA5, 0x35, 0xB6, 0x50},   // node B: bedroom
+};
 
 #define PROTOCOL_VERSION 2
 #define NUM_BANDS 7       // octave bands centred on 63, 125, 250, 500, 1k, 2k and 4k Hz

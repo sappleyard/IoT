@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Set up the Pi for Aircraft-Noise (safe to re-run). Run on the Pi after deploy.sh:
 #
-#   sudo bash ~/aircraft-noise/setup/install.sh [<latitude> <longitude>]
+#   sudo bash ~/aircraft-noise/setup/install.sh
 #
-# 1. Sets readsb's receiver location, if given (the ADS-B logger needs one).
+# 1. Sets readsb's receiver location from location.json (the same file the logger reads).
 # 2. Installs pyserial and lets your user open the bridge's serial port.
 # 3. Keeps system logs across reboots, so problems can be traced afterwards.
 # 4. Installs and (re)starts the adsb-logger and bridge-link services.
@@ -16,12 +16,9 @@ fi
 user=${SUDO_USER:?run this with sudo from your normal account, not as root}
 pi_dir=$(cd "$(dirname "$0")/.." && pwd)
 
-if [[ $# -eq 2 ]]; then
-  readsb-set-location "$1" "$2"
-elif [[ $# -ne 0 ]]; then
-  echo "Usage: sudo bash $0 [<latitude> <longitude>]" >&2
-  exit 1
-fi
+loc=$(python3 -c 'import json, sys; d = json.load(open(sys.argv[1])); print(d["lat"], d["lon"])' \
+  "$pi_dir/location.json") || { echo "Need $pi_dir/location.json (see README)" >&2; exit 1; }
+readsb-set-location $loc
 
 apt-get install -y python3-serial sqlite3
 usermod -aG dialout "$user"

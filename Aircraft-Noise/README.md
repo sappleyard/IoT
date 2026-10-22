@@ -26,9 +26,13 @@ Each node, every second (all levels in dB, uncalibrated; the Pi stores each mic'
 | `lamax` | Loudest 125 ms within the second, dB(A) |
 | `band_63` … `band_4000` | Unweighted level in each octave band (63, 125, 250, 500 Hz, 1, 2, 4 kHz): a coarse sound fingerprint, the kind airport noise monitors use to tell aircraft from traffic |
 
-The ADS-B logger stores every aircraft position within 60 km, about once a second each.
-Both mics record all the time, plane or not: training needs plenty of "no aircraft" examples
-too. Labels come later, by matching the levels against the flight log.
+The ADS-B logger stores every aircraft position within 60 km, about once a second each, and
+one `passes` row per aircraft that comes within 5 km (its closest moment and distance): the
+ground truth that mic detections are checked against. Both mics record all the time, plane or
+not: training needs plenty of "no aircraft" examples too.
+
+The radio link is ESP-NOW in long-range mode, **encrypted** (AES-CCMP); the bridge only
+accepts the two nodes listed in `protocol.h`.
 
 ## The database: `~/aircraft-noise-data/noise.db` on the Pi
 
@@ -36,6 +40,7 @@ too. Labels come later, by matching the levels against the flight log.
 |---|---|
 | `levels` | mic per second: `ts, mic ('A'/'B'), seq, uptime_ms, flags, laeq, lamax, band_63 … band_4000, rssi, cal_db` |
 | `aircraft_positions` | aircraft position: `ts, hex, callsign, lat, lon, alt_baro_ft, alt_geom_ft, speed_kt, track_deg, dist_km` |
+| `passes` | aircraft within 5 km: `hex, callsign, first_ts, last_ts, closest_ts, closest_slant_km, closest_dist_km, closest_alt_ft, speed_kt, track_deg` |
 | `logger_coverage` | period the ADS-B logger was running with fresh data (outside them, "no aircraft" means nothing) |
 | `meta` | fact, e.g. the receiver location |
 
@@ -51,13 +56,16 @@ packets; `uptime_ms` going backwards means the node restarted.
 ## Files
 
 ```
+analysis/summary.py         report figures + summary from a copy of the Pi's database
 esp32/
   flash.sh                  build + flash:  ./flash.sh bridge|node [pi|<port>]
-  common/                   shared by both firmwares: packet format (protocol.h), radio
+  common/                   shared by both firmwares: packet format and board list (protocol.h),
+                            radio; secrets.h holds the encryption keys (made by flash.sh, git-ignored)
   bridge/main/main.c        relays node packets to the Pi as JSON lines
   node/main/main.c, mic.c   measures the mic, sends a packet a second
 pi/
   deploy.sh                 copy the Pi code to the Pi and restart the services
+  location.json             home location {"lat": .., "lon": ..}: git-ignored, never published
   setup/                    install.sh and the two systemd services
   aircraft_noise/
     config.py               every setting, including the mics (MAC, name, location, calibration)
@@ -87,11 +95,11 @@ updating close aircraft about once a second, and only nearby aircraft matter for
 
 ESP-IDF 5.5 is installed on the Mac (`~/esp/esp-idf`). Pi: `ssh sebpi@sebpi` over Tailscale.
 
+0. Create `pi/location.json` with the home location: `{"lat": 51.5, "lon": -0.1}`.
 1. Flash the boards (each plugged into the Pi, or the Mac with `./flash.sh node`):
    `esp32/flash.sh bridge pi`, then `esp32/flash.sh node pi` for each node.
 2. Copy the code to the Pi: `pi/deploy.sh`
-3. Once, on the Pi (needs your password):
-   `ssh -t sebpi@sebpi sudo bash aircraft-noise/setup/install.sh <latitude> <longitude>`
+3. Once, on the Pi (needs your password): `ssh -t sebpi@sebpi sudo bash aircraft-noise/setup/install.sh`
 4. Start collecting: `ssh sebpi@sebpi rm aircraft-noise-data/PAUSED`
 
 Health: `ssh sebpi@sebpi journalctl -u bridge-link -u adsb-logger -f`. Every 10 minutes
@@ -116,8 +124,15 @@ Do this with both nodes in their weatherproof cases, so the case is part of the 
 
 Current offsets (A −7, B −6) are rough estimates from an uncased test.
 
+## Analysis
+
+`python3 analysis/summary.py` copies the Pi's database (consistently) and writes figures and a
+summary to `analysis/figures/`: levels over time, the daily profile, octave-band spectra of
+aircraft vs quiet, and the sound propagation model (LAmax = L1 - 20 log10(r) - alpha r, fitted
+to the passes the mics heard, background-corrected), with detection rate by distance.
+
 ## Next steps
 
-- Label the levels from the ADS-B log and train a model to tell aircraft from other noise.
-- Look up flights with FlightAware AeroAPI (feeding FlightAware from readsb doubles the free allowance).
-- Match noise events to flights.
+See the design summary (`docs/`): the mic event detector (v1 rule), flight info from the free
+offline VRS route database, the Sonos announcer, the model on octave bands (v2: special
+aircraft only), then the publishing API and dashboard.
