@@ -30,6 +30,7 @@ printf '[Journal]\nStorage=persistent\nSystemMaxUse=100M\n' \
   > /etc/systemd/journald.conf.d/50-aircraft-noise.conf
 systemd-tmpfiles --create --prefix /var/log/journal
 systemctl restart systemd-journald
+journalctl --flush   # start writing to disk now, not only after the next boot
 
 for unit in adsb-logger bridge-link; do
   sed -e "s|@USER@|$user|g" -e "s|@PI_DIR@|$pi_dir|g" \
