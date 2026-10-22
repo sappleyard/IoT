@@ -12,20 +12,23 @@ DB_PATH = DATA_DIR / "noise.db"
 # e.g. to flash a board:  touch ~/aircraft-noise-data/PAUSED  (rm it to resume).
 PAUSE_FILE = DATA_DIR / "PAUSED"
 
-# The home location, from pi/location.json: {"lat": .., "lon": .., "alt_m": ..}. alt_m is the
-# height above sea level of the receiver and mic A (ground level + one floor); mic B is one
-# floor higher, which changes slant distances to aircraft by under 0.5% and is ignored.
+# The home location, from pi/location.json: {"lat": .., "lon": .., "alt_m": .., "geoid_m": ..}.
+# alt_m is the height above sea level of the receiver and mic A (ground level + one floor); mic
+# B is one floor higher, which changes slant distances to aircraft by under 0.5% and is ignored.
+# geoid_m is how far sea level (the EGM96 geoid) sits above the WGS84 ellipsoid here, about 46 m
+# in London: aircraft GPS altitudes are measured from the ellipsoid, so it's subtracted from them.
 # Kept out of git, so the code can be published without revealing where it runs.
 LOCATION_FILE = Path(__file__).resolve().parent.parent / "location.json"
 
 
 def home_location():
-    """(lat, lon, alt_m) from LOCATION_FILE."""
+    """(lat, lon, alt_m, geoid_m) from LOCATION_FILE."""
     try:
         loc = json.loads(LOCATION_FILE.read_text())
-        return loc["lat"], loc["lon"], loc.get("alt_m", 0.0)
+        return loc["lat"], loc["lon"], loc.get("alt_m", 0.0), loc.get("geoid_m", 0.0)
     except (OSError, ValueError, KeyError) as e:
-        raise SystemExit(f'Need {LOCATION_FILE} like {{"lat": 51.5, "lon": -0.1, "alt_m": 8}} ({e})')
+        raise SystemExit(f'Need {LOCATION_FILE} like '
+                         f'{{"lat": 51.5, "lon": -0.1, "alt_m": 8, "geoid_m": 46}} ({e})')
 
 
 # --- ADS-B logger -------------------------------------------------------------------------

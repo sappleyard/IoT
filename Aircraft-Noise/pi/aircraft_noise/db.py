@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS aircraft_positions (
     lat         REAL NOT NULL,
     lon         REAL NOT NULL,
     alt_baro_ft INTEGER,         -- pressure altitude (not corrected for the day's air pressure)
-    alt_geom_ft INTEGER,         -- GPS altitude, when the aircraft sends it
+    alt_geom_ft INTEGER,         -- GPS altitude above the WGS84 ellipsoid (not sea level), as sent
     speed_kt    REAL,
     track_deg   REAL,
     dist_km     REAL,            -- ground distance from the receiver
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS passes (
     closest_ts       REAL NOT NULL,   -- when it was closest (sound arrives slant/343 s later)
     closest_slant_km REAL NOT NULL,   -- straight-line distance from the receiver at that moment
     closest_dist_km  REAL,            -- ground distance
-    closest_alt_ft   INTEGER,         -- above sea level
+    closest_alt_ft   INTEGER,         -- above sea level (GPS altitude corrected by geoid_m)
     alt_is_gps       INTEGER,         -- 1 = GPS altitude; 0 = pressure altitude (uncorrected)
     speed_kt         REAL,
     track_deg        REAL,

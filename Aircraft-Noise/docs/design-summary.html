@@ -107,7 +107,9 @@ pass's level is read. The model is used three ways:</p>
 3.7, 9.7 and 33 dB/km in the 63 Hz to 4 kHz octaves), so a pass sounds more muffled the further away it is. The octave
 bands let that be tested directly: the high bands of a pass should fall faster with distance than the low ones.
 Simplifications: no Doppler, no ground reflection, and one source level per aircraft type. Distances use GPS altitude,
-which 847 of 850 nearby aircraft sent in the trial, and the receiver's height (about 8 m above sea level). There's no
+which 847 of 850 nearby aircraft sent in the trial, converted from height above the WGS84 ellipsoid (what aircraft
+broadcast) to height above sea level by subtracting the geoid height, about 46 m in London, and the receiver's height
+(about 8 m above sea level). There's no
 barometric sensor: the few pressure-altitude passes are flagged, and could be corrected later from Heathrow's archived
 weather reports. Aircraft on the ground are excluded, and helicopters are kept out of the fit.</p>
 </div>
@@ -297,6 +299,7 @@ pass history.</p>
   <tr><td>v2: announce unique aircraft only</td><td>About one pass every two minutes in daytime makes "announce everything" too much for daily use; uniqueness is learned from the pass history. The only v2 change planned so far.</td></tr>
   <tr><td>Receiver height in slant distance</td><td>The Pi and mic A are one floor up (about 8 m above sea level, set in <code>location.json</code>); mic B is one floor higher, which changes distances to aircraft by under 0.5%.</td></tr>
   <tr><td>GPS altitude first; pressure altitude flagged</td><td>847 of the 850 aircraft within 5 km in the trial sent GPS altitude. Pressure altitude isn't corrected for the day's pressure (about ±30 ft per hPa), so passes record which was used. Pressure can be corrected afterwards from Heathrow's archived METAR weather reports if ever needed.</td></tr>
+  <tr><td>GPS altitude converted to sea level</td><td>Aircraft broadcast GPS height above the WGS84 ellipsoid, about 46 m (150 ft) above London's sea level. Uncorrected, every slant distance was ~5% too long overhead (~0.4 dB in the fit, ~0.13 s of sound delay), and a helicopter on a pad read ~150 ft, slipping past the ground filter. Raw values are kept, so old rows can be corrected too.</td></tr>
   <tr><td>No barometric sensor (for now)</td><td>With GPS altitude on nearly every nearby aircraft it adds little; the classifier never uses altitude, and stored raw altitudes allow later correction.</td></tr>
   <tr><td>Aircraft on the ground aren't passes</td><td>Taxiing aircraft and helicopters on the nearby heliport pad would pollute the labels and the fit. Flagged on-ground, or below 100 ft and slower than 30 kt, is excluded; hovering and landing helicopters stay in, and their ADS-B category keeps them out of the fixed-wing propagation fit.</td></tr>
   <tr><td>Analysis built for weeks of data</td><td>Sorted arrays and binary search: a week of both mics (1.2 M rows, 3,668 passes) runs in 8 s with 460 MB, where the first version would have needed tens of GB.</td></tr>

@@ -45,15 +45,23 @@ def slant_km(dist_km, alt_ft, receiver_alt_m):
     return math.hypot(dist_km, height_km)
 
 
-def on_ground(row):
+def altitude_ft(alt_baro, alt_geom, geoid_m):
+    """Best altitude above sea level: GPS if sent (moved from the ellipsoid to sea level by
+    subtracting the geoid height), otherwise pressure altitude."""
+    if alt_geom is not None:
+        return round(alt_geom - geoid_m / 0.3048)
+    return alt_baro
+
+
+def on_ground(row, geoid_m):
     """True for an aircraft on the ground: flagged so, or very low and very slow."""
     _, _, _, _, _, alt_baro, alt_geom, speed, _, _, _, ground = row
-    alt = alt_geom if alt_geom is not None else alt_baro
+    alt = altitude_ft(alt_baro, alt_geom, geoid_m)
     return bool(ground) or (alt is not None and alt < GROUND_MAX_ALT_FT
                             and speed is not None and speed < GROUND_MAX_SPEED_KT)
 
 
-def update_passes(rows, passes, receiver_alt_m):
+def update_passes(rows, passes, receiver_alt_m, geoid_m):
     """Track each airborne aircraft's closest approach while it's within PASS_RADIUS_KM.
 
     passes maps hex -> the pass in progress (a dict shaped like a passes row). GPS altitude
@@ -61,9 +69,9 @@ def update_passes(rows, passes, receiver_alt_m):
     """
     for row in rows:
         ts, hex_, callsign, _, _, alt_baro, alt_geom, speed, track, dist, category, _ = row
-        if on_ground(row):
+        if on_ground(row, geoid_m):
             continue
-        alt = alt_geom if alt_geom is not None else alt_baro
+        alt = altitude_ft(alt_baro, alt_geom, geoid_m)
         slant = slant_km(dist, alt, receiver_alt_m)
         if slant > PASS_RADIUS_KM:
             continue
@@ -111,11 +119,12 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     db = connect()
 
-    lat, lon, receiver_alt_m = home_location()
+    lat, lon, receiver_alt_m, geoid_m = home_location()
     receiver = (lat, lon)
     set_meta(db, "receiver_lat", lat)
     set_meta(db, "receiver_lon", lon)
     set_meta(db, "receiver_alt_m", receiver_alt_m)
+    set_meta(db, "geoid_m", geoid_m)
     db.commit()
 
     last_saved = {}
@@ -139,7 +148,7 @@ def main():
                 rows = new_positions(data, receiver, last_saved)
                 db.executemany(INSERT, rows)
                 saved += len(rows)
-                update_passes(rows, passes, receiver_alt_m)
+                update_passes(rows, passes, receiver_alt_m, geoid_m)
                 db.executemany(INSERT_PASS, finished_passes(passes, data["now"]))
                 if coverage is None:
                     coverage = db.execute("INSERT INTO logger_coverage VALUES (?, ?)",
