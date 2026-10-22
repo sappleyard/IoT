@@ -23,7 +23,11 @@ readsb-set-location $loc
 apt-get install -y python3-serial sqlite3
 usermod -aG dialout "$user"
 
-mkdir -p /var/log/journal
+# Raspberry Pi OS keeps logs in memory only (40-rpi-volatile-storage.conf); override that,
+# capped at 100 MB so SD-card wear stays small.
+mkdir -p /var/log/journal /etc/systemd/journald.conf.d
+printf '[Journal]\nStorage=persistent\nSystemMaxUse=100M\n' \
+  > /etc/systemd/journald.conf.d/50-aircraft-noise.conf
 systemd-tmpfiles --create --prefix /var/log/journal
 systemctl restart systemd-journald
 
