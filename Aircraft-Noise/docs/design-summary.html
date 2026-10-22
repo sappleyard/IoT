@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aircraft Noise: design summary</title>
+<style>
+  @page { size: A4; margin: 13mm 14mm 13mm 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-size: 9.2pt;
+         line-height: 1.32; color: #1a1a1a; margin: 0; }
+  h1 { font-size: 16pt; margin: 0 0 1mm; }
+  .sub { color: #555; margin: 0 0 3mm; font-size: 9pt; }
+  h2 { font-size: 10.6pt; margin: 3.2mm 0 1.2mm; color: #123c69; border-bottom: 1px solid #c9d6e3;
+       padding-bottom: 0.6mm; }
+  p { margin: 0 0 1.6mm; }
+  ul { margin: 0 0 1.6mm; padding-left: 4.5mm; }
+  li { margin-bottom: 0.5mm; }
+  table { border-collapse: collapse; width: 100%; margin: 0.5mm 0 1.8mm; font-size: 8.5pt; }
+  th, td { border: 1px solid #c9d6e3; padding: 1mm 1.4mm; text-align: left; vertical-align: top; }
+  th { background: #eaf0f6; font-weight: 600; }
+  .goal { background: #f3f7fb; border-left: 3px solid #123c69; padding: 1.6mm 2.4mm; margin-bottom: 2mm; }
+  .eq { font-family: "Times New Roman", serif; font-size: 11pt; text-align: center; margin: 1.2mm 0; }
+  .num { text-align: right; white-space: nowrap; }
+  .page { page-break-after: always; }
+  .small { font-size: 8.2pt; color: #444; }
+  code { font-family: Menlo, monospace; font-size: 8pt; background: #f2f2f2; padding: 0 0.6mm; }
+  ol { margin: 0 0 1.6mm; padding-left: 5mm; }
+  ol li { margin-bottom: 0.9mm; }
+  h3 { font-size: 9.6pt; margin: 2.4mm 0 0.8mm; }
+</style>
+</head>
+<body>
+
+<!-- ============================ MAIN TEXT ============================ -->
+<div>
+<h1>Aircraft Noise: design summary</h1>
+<p class="sub">What changed on 22 October 2026, why, and what's left &nbsp;·&nbsp; DESE71003 Sensing &amp; IoT coursework</p>
+
+<div class="goal"><b>Goal.</b> Two microphones hear an aircraft; the ADS-B receiver identifies it (the aircraft whose
+sound would arrive at that moment); the Sonos announces it with its route. <b>Only aircraft that were actually heard are
+announced</b> (v1), and later only unusual ones, judged from how often each airline, type and route is seen (v2).</div>
+
+<h2>1. Where the system stands (collection goes live tonight)</h2>
+<ul>
+  <li><b>Two mic nodes</b> (ESP32 + INMP441, mains powered) turn every second of sound into nine numbers and send them,
+    <b>encrypted</b>, over ESP-NOW long-range radio to a <b>bridge</b> ESP32 on the Pi's USB. No audio leaves a node.</li>
+  <li><b>The Pi</b> runs two services: <code>bridge_link</code> stores the levels; <code>adsb_logger</code> stores every
+    aircraft position within 60 km plus one <b>pass</b> row per aircraft within 5 km (the ground truth the mics are
+    checked against). Everything goes into one SQLite database. <code>analysis/summary.py</code> produces the
+    time-series figures. The software flow is in Appendix A.</li>
+  <li><b>Fresh start:</b> the first 2.2 days of data are archived on the Mac (outside git); the 27 h of raw bridge audio
+    from the first trial were deleted, not archived. Code went from about 60 files to 27, with one README.</li>
+</ul>
+
+<h2>2. Recording efficiency: from audio to levels</h2>
+<table>
+  <tr><th>Recording method</th><th class="num">On the air</th><th class="num">Stored per mic per day</th><th>Privacy</th></tr>
+  <tr><td>Raw audio, 16 kHz × 16 bit (first trial)</td><td class="num">32,000 B/s</td><td class="num">2.76 GB</td><td>Records speech</td></tr>
+  <tr><td>Raw audio as 8-bit μ-law (tried, to fit the CH340 USB chip)</td><td class="num">16,000 B/s</td><td class="num">1.38 GB</td><td>Records speech</td></tr>
+  <tr><td><b>Now: 1 s levels</b> (LAeq, LAmax, 7 octave bands, flags)</td><td class="num"><b>44 B/s</b></td><td class="num"><b>≈ 11.7 MB</b></td><td><b>Speech can't be recovered</b></td></tr>
+</table>
+<p><b>727× less radio data and about 235× less storage</b> per mic than raw audio, with the analysis done where the sound
+is. Each node filters 16,000 samples a second (A-weighting and seven octave-band filters, about 20 small filter stages per
+sample), which uses only a few percent of the ESP32. Octave-band levels are what airport noise monitors record, so the
+data stays useful for telling aircraft from other sounds and for training a model. ADS-B adds about 50 MB a day; the Pi
+has 49 GB free.</p>
+
+<h2>3. Why ESP-NOW rather than the home Wi-Fi, and how it scales</h2>
+<table>
+  <tr><th></th><th>ESP-NOW long range + bridge (chosen)</th><th>Home Wi-Fi straight to the Pi</th></tr>
+  <tr><td>Reach</td><td>Long-range mode: up to ~2× the range of normal Wi-Fi in open air; doesn't depend on the router</td><td>Weak at the windows, where the mics sit outside</td></tr>
+  <tr><td>Independence</td><td>Its own link: router restarts, password changes or busy Wi-Fi don't affect it</td><td>Depends on the router, DHCP and credentials in the firmware</td></tr>
+  <tr><td>Security</td><td>AES-CCMP encryption; the bridge accepts only the listed nodes; the household network is never touched</td><td>WPA2 of the home network; nodes join that network</td></tr>
+  <tr><td>Modularity</td><td>Nodes, relay and Pi are separate parts with one simple packet format</td><td>Fewer boards, but nodes tied to the house network</td></tr>
+  <tr><td>Cost</td><td>One extra ESP32 (the bridge) and one USB cable</td><td>None</td></tr>
+</table>
+<p><b>Scalability.</b> Each node sends one 44-byte packet a second, which at the long-range bit rate (¼–½ Mbit/s) takes
+a few milliseconds: under 1% of the air time, so the radio channel could carry well over a hundred nodes. The tighter
+limits are: <b>encrypted peers</b> on the bridge (7 by default, 17 at most, 20 peers in total), so about 7 nodes as
+configured and 17 with one setting changed; and the <b>USB serial link</b> at 115,200 baud (about 11.5 kB/s, roughly
+50 nodes at one ~210-byte JSON line each per second). Beyond that, add a second bridge. On the Pi each node adds about
+11.7 MB a day and one database row a second, which SQLite handles easily. Adding a node means one line in
+<code>protocol.h</code>, one in the Pi's mic table, and a reflash.</p>
+
+<h2>4. Sound propagation model</h2>
+<p>An aircraft is treated as a point source. Its sound spreads over a sphere, losing 6 dB per doubling of distance, and
+the air absorbs a little more with every kilometre:</p>
+<div class="eq">L<sub>A,max</sub>(r) = L<sub>1</sub> − 20 log<sub>10</sub>(r / 1 km) − α (r − 1 km)</div>
+<p><b>r</b> is the slant distance at the aircraft's closest point (from ADS-B), <b>L<sub>1</sub></b> the level at 1 km
+and <b>α</b> the air absorption in dB/km. Both are fitted per mic, by least squares, to the passes that clearly rose above
+the background, after subtracting the background's energy (as in ISO 1996). Without that step, distant passes whose
+"peak" is really background noise flatten the curve. The sound arrives <b>r / 343 m/s</b> after the closest moment
+(3.2 s at 1.1 km), so that's where each pass's level is read. The model is used three ways:</p>
+<ul>
+  <li><b>Predict and emulate before collecting:</b> six hours of synthetic data were generated from the model with known
+    values (α = 4.0 dB/km). The analysis recovered α = 4.1–4.4 dB/km, which checked the whole pipeline end to end.</li>
+  <li><b>Attribution:</b> the sound delay tells the event detector which aircraft a rise in level belongs to.</li>
+  <li><b>Insight:</b> the fitted curve and its scatter show how far away planes are still audible at each mic, and which
+    aircraft are louder than the model predicts (a feature for v2's "special aircraft").</li>
+</ul>
+<p class="small">Air absorption rises steeply with frequency (ISO 9613, 10 °C, 70% humidity: about 0.1, 0.4, 1.0, 1.9,
+3.7, 9.7 and 33 dB/km in the 63 Hz to 4 kHz octaves), so a pass sounds more muffled the further away it is. The octave
+bands let that be tested directly: the high bands of a pass should fall faster with distance than the low ones.
+Simplifications: no Doppler, no ground reflection, and one source level per aircraft type.</p>
+</div>
+
+<!-- ============================ PAGE 2 ============================ -->
+<div class="page">
+<h2>5. From mic to announcement: how the pieces fit</h2>
+<table>
+  <tr><th>Stage</th><th>Driven by</th><th>What it does</th></tr>
+  <tr><td><b>Pass records</b></td><td>ADS-B</td><td>Every aircraft within 5 km, heard or not: the ground truth. Lets the
+    report measure what the mics <i>missed</i> (detection rate by distance, altitude and window), and labels the training data.</td></tr>
+  <tr><td><b>Heard events</b> (to build)</td><td>The mics</td><td>A rise in level above the background, matched to the pass
+    whose sound would arrive then. v1 uses a rule; v2 a model trained on the octave bands.</td></tr>
+  <tr><td><b>Flight info</b> (to build)</td><td>Heard events only</td><td>Route by callsign from the free, offline
+    <b>VRS standing data</b> (updated daily); aircraft type, owner and photo from <b>adsbdb</b> (free, cached). No
+    FlightAware or feeding for now: nothing is looked up for flights that weren't heard.</td></tr>
+  <tr><td><b>Announcement</b> (to build)</td><td>Heard events only</td><td>Spoken on the Sonos over whatever is playing
+    (method already proven in <code>Sonos-Test</code>). v1: every heard flight, within quiet hours. v2: only the rare ones.</td></tr>
+</table>
+<p>About <b>460 aircraft a day</b> pass within 1.5 km, roughly <b>one every two minutes</b> in daytime, almost all on the
+Heathrow approach at about 3,250 ft. That makes v2's rarity filter essential, and gives plenty of training examples
+within a week. British Airways alone made 454 of 1,044 close passes in the trial, while 25 airlines appeared only once.</p>
+
+<h2>6. Data, privacy and security</h2>
+<ul>
+  <li><b>No audio is recorded or stored</b> anywhere: privacy by design, and the main ethics point. The first trial's
+    audio was deleted.</li>
+  <li><b>The home location</b> lives only in <code>pi/location.json</code>, which git ignores. Published data will carry
+    distances and bearings from the receiver, never coordinates, because aircraft positions around a receiver reveal where it is.</li>
+  <li><b>Radio:</b> AES-CCMP encrypted ESP-NOW. The keys are generated randomly by <code>flash.sh</code> and kept in a
+    git-ignored <code>secrets.h</code>. The bridge rejects unknown boards and wrong packet versions.</li>
+  <li><b>The publishing API and dashboard</b> are deferred until the model is trained, for the deployment part of the report.</li>
+</ul>
+
+<h2>7. Robustness built in</h2>
+<ul>
+  <li>Nodes are mains powered and always listening; they <b>restart themselves</b> if the code hangs (watchdog) or the
+    bridge stops acknowledging for 60 s. The bridge sends a heartbeat every minute.</li>
+  <li><b>Mic-fault flag</b> when a mic sends nothing but one value. A faulty INMP441 found during testing read pure zeros
+    and crashed the Pi's USB controller; new mics are now tried on a phone charger first.</li>
+  <li>Sequence numbers expose lost packets; <code>uptime</code> exposes restarts. The Pi logs a health line per mic every
+    10 minutes and keeps its logs across reboots. Services restart by themselves after a power cut. The ADS-B logger
+    records its own coverage, so an outage can't pass for an empty sky.</li>
+  <li><b>Calibration</b> belongs to each mic and lives on the Pi (no reflash). It's done with both nodes in their
+    weatherproof cases, side by side, with pink noise at three fixed levels: an exact A-vs-B offset, an approximate
+    absolute offset from a phone meter, and a check on whether the cases colour any octave band.</li>
+</ul>
+
+<h2>8. v1 then v2</h2>
+<p><b>v1</b> (working system): a rule finds heard aircraft (level rise above the background at the expected arrival
+time), looks up the route and announces every heard flight. <b>v2</b> (learning goal): a classifier trained on the
+octave-band levels, labelled automatically from the pass records, decides "aircraft or not". Its precision and recall are
+compared with v1's rule, and only rare aircraft are announced, ranked by how often each airline, type and route appears
+in the pass history. Both are measured against the same ADS-B ground truth, which gives the report its central analysis.</p>
+<p class="small">The full decision log is in Appendix B, and the remaining work, in order, is in Appendix C.</p>
+</div>
+
+<!-- ============================ APPENDIX A ============================ -->
+<div class="page">
+<h2 style="margin-top:0">Appendix A. Software workflow</h2>
+<p class="small">Solid boxes run from tonight. Dashed boxes are still to build (Appendix C).</p>
+<svg viewBox="0 0 760 640" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="11">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#123c69"/></marker>
+    <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8a8a8a"/></marker>
+  </defs>
+  <style>
+    .box { fill: #eaf0f6; stroke: #123c69; stroke-width: 1.3; }
+    .db { fill: #fff6e0; stroke: #a8740a; stroke-width: 1.3; }
+    .todo { fill: #fafafa; stroke: #8a8a8a; stroke-width: 1.2; stroke-dasharray: 5 3; }
+    .t { font-weight: 600; font-size: 12px; }
+    .line { stroke: #123c69; stroke-width: 1.4; fill: none; marker-end: url(#a); }
+    .gline { stroke: #8a8a8a; stroke-width: 1.3; fill: none; stroke-dasharray: 5 3; marker-end: url(#g); }
+    .lab { fill: #123c69; font-size: 10px; font-style: italic; }
+  </style>
+
+  <!-- Sensing chain (left) -->
+  <rect class="box" x="10" y="10" width="360" height="78" rx="6"/>
+  <text x="20" y="30" class="t">Mic nodes A and B (ESP32 + INMP441)</text>
+  <text x="20" y="47">I²S at 16 kHz → DC removal → A-weighting and</text>
+  <text x="20" y="62">7 octave-band filters (63 Hz–4 kHz) → every second:</text>
+  <text x="20" y="77">LAeq, LAmax, 7 band levels, mic-fault flag (no audio kept)</text>
+
+  <path class="line" d="M190,88 L190,128"/>
+  <text x="198" y="106" class="lab">encrypted ESP-NOW, long range</text>
+  <text x="198" y="119" class="lab">44 bytes per node per second</text>
+
+  <rect class="box" x="10" y="130" width="360" height="62" rx="6"/>
+  <text x="20" y="150" class="t">Bridge ESP32 (on the Pi's USB)</text>
+  <text x="20" y="167">decrypts; accepts only the listed nodes → one JSON</text>
+  <text x="20" y="182">line per packet, plus a heartbeat every minute</text>
+
+  <path class="line" d="M190,192 L190,226"/>
+  <text x="198" y="213" class="lab">USB serial, 115,200 baud</text>
+
+  <rect class="box" x="10" y="228" width="360" height="62" rx="6"/>
+  <text x="20" y="248" class="t">bridge_link.py (Pi service)</text>
+  <text x="20" y="265">stores one row per mic per second, adds calibration;</text>
+  <text x="20" y="280">health line per mic every 10 min</text>
+
+  <!-- ADS-B chain (right) -->
+  <rect class="box" x="400" y="10" width="350" height="62" rx="6"/>
+  <text x="410" y="30" class="t">RTL-SDR antenna + readsb</text>
+  <text x="410" y="47">decodes 1090 MHz ADS-B broadcasts;</text>
+  <text x="410" y="62">writes aircraft.json every second</text>
+
+  <path class="line" d="M575,72 L575,126"/>
+  <text x="583" y="104" class="lab">positions ~1 per second</text>
+
+  <rect class="box" x="400" y="128" width="350" height="78" rx="6"/>
+  <text x="410" y="148" class="t">adsb_logger.py (Pi service)</text>
+  <text x="410" y="165">positions within 60 km; one pass per aircraft</text>
+  <text x="410" y="180">within 5 km (closest moment, slant distance);</text>
+  <text x="410" y="195">its own coverage periods</text>
+
+  <!-- Database -->
+  <path class="line" d="M190,290 L300,334"/>
+  <path class="line" d="M575,206 L470,334"/>
+  <rect class="db" x="180" y="336" width="400" height="56" rx="6"/>
+  <text x="190" y="356" class="t">noise.db (SQLite on the Pi, WAL mode)</text>
+  <text x="190" y="373">levels · aircraft_positions · passes · logger_coverage · meta</text>
+  <text x="190" y="387" font-size="10" fill="#555">home location from git-ignored location.json</text>
+
+  <!-- Built: analysis -->
+  <path class="line" d="M230,392 L150,436"/>
+  <rect class="box" x="10" y="438" width="280" height="62" rx="6"/>
+  <text x="20" y="458" class="t">analysis/summary.py (Mac)</text>
+  <text x="20" y="475">timeline, daily profile, band spectra,</text>
+  <text x="20" y="490">propagation fit, detection rate by distance</text>
+
+  <!-- To build -->
+  <path class="gline" d="M480,392 L540,428"/>
+  <rect class="todo" x="320" y="430" width="430" height="48" rx="6"/>
+  <text x="330" y="450" class="t">Event detector: v1 rule, v2 model</text>
+  <text x="330" y="467">level rise vs background → matched to a pass by sound delay → "heard"</text>
+
+  <path class="gline" d="M535,478 L535,500"/>
+  <rect class="todo" x="320" y="502" width="430" height="44" rx="6"/>
+  <text x="330" y="521" class="t">Flight info (heard flights only)</text>
+  <text x="330" y="537">route from VRS standing data (offline); aircraft from adsbdb (cached)</text>
+
+  <path class="gline" d="M535,546 L535,568"/>
+  <rect class="todo" x="320" y="570" width="430" height="44" rx="6"/>
+  <text x="330" y="589" class="t">Announcer → Sonos</text>
+  <text x="330" y="605">speech clip over the music · v1 every heard flight · v2 rare ones only</text>
+
+  <rect class="todo" x="10" y="520" width="280" height="44" rx="6"/>
+  <text x="20" y="539" class="t">Classifier on octave bands (v2)</text>
+  <text x="20" y="555">reads noise.db: levels labelled by the passes</text>
+  <path class="gline" d="M290,542 L320,460"/>
+
+  <rect class="todo" x="10" y="580" width="280" height="44" rx="6"/>
+  <text x="20" y="599" class="t">Publishing API + dashboard</text>
+  <text x="20" y="615">reads noise.db; after training (deployment)</text>
+</svg>
+</div>
+
+<!-- ============================ APPENDIX B ============================ -->
+<div class="page">
+<h2 style="margin-top:0">Appendix B. Decision log</h2>
+<table>
+  <tr><th style="width:27%">Decision</th><th>Why</th></tr>
+  <tr><td>Store levels, never audio</td><td>Privacy, and the module's ethics guidance on sensitive data; 727× less radio data and about 235× less storage. The first trial's audio (27 h) was deleted.</td></tr>
+  <tr><td>LAeq + LAmax + 7 octave bands, each second</td><td>The standard way aircraft noise is monitored; enough detail to tell aircraft from traffic and to train a model on; can't reproduce speech.</td></tr>
+  <tr><td>Mains-powered, always-on nodes</td><td>The nodes are wired to power, so sleep, heartbeats and battery code were removed in favour of robust, continuous data.</td></tr>
+  <tr><td>Keep the bridge and ESP-NOW (not Wi-Fi)</td><td>House Wi-Fi is weak where the mics sit, outside the windows; keeps the sensing network independent of the household network; modular.</td></tr>
+  <tr><td>ESP-NOW long-range mode</td><td>The data is tiny (44 B/s), so the slower bit rate costs nothing and buys range for the untested floor-3 bedroom.</td></tr>
+  <tr><td>Encrypt ESP-NOW</td><td>Security: only the listed nodes are accepted, and keys stay out of git.</td></tr>
+  <tr><td>Bridge has no mic</td><td>Its mic moved to a node. With nothing connected, its data pin floated and reported junk (70–87 dB(A)).</td></tr>
+  <tr><td>One firmware for both nodes; mics identified by MAC</td><td>No per-node builds. Names, locations and calibration live in one table on the Pi, so moving or recalibrating a mic needs no reflash.</td></tr>
+  <tr><td>Watchdogs, mic-fault flag, health log, persistent logs</td><td>Lessons from testing: a dead mic, a crashed USB controller and two power cuts, which were hard to diagnose without logs.</td></tr>
+  <tr><td>Serial at 115,200 baud</td><td>The CH340 USB chip dropped bytes above about 40 kB/s while audio was being sent; levels need under 1 kB/s.</td></tr>
+  <tr><td>Remove the 50 Hz high-pass; drop the unweighted level</td><td>A-weighting and the band filters already reject sub-audible rumble; fewer stages, same information.</td></tr>
+  <tr><td>A-weighting (dB(A))</td><td>Matches what people hear and what a phone meter shows; unweighted levels were 10–15 dB higher in rumbly rooms.</td></tr>
+  <tr><td>ADS-B antenna stays indoors</td><td>The trial showed complete coverage to 60 km in all 12 directions, with positions every ~1 s for nearby aircraft; outdoors would only add far-away range.</td></tr>
+  <tr><td>Pass records (ADS-B) and heard events (mics)</td><td>Passes give the ground truth needed to measure misses and to label training data; mic events drive the lookups and announcements.</td></tr>
+  <tr><td>Routes from VRS standing data; aircraft from adsbdb</td><td>Free, tested (BAW906 → Heathrow–Frankfurt), and VRS works offline. FlightAware's free allowance ($5–10/month) wouldn't cover ~460 passes a day; no feeding for now.</td></tr>
+  <tr><td>v1 rule, then v2 model</td><td>A working system first; the model is the learning goal, judged against the rule on the same ground truth.</td></tr>
+  <tr><td>v2 announces rare aircraft only</td><td>About one pass every two minutes in daytime would make "announce everything" unbearable; rarity is learned from the pass history.</td></tr>
+  <tr><td>Fresh database; first run archived</td><td>A clean dataset with one schema; the 2.2-day trial is kept on the Mac (outside git) for reference.</td></tr>
+  <tr><td>Location in a git-ignored file</td><td>Code and data can be published on GitHub without revealing the home.</td></tr>
+  <tr><td>Publishing API and dashboard later</td><td>They belong to the deployment section, once the model exists.</td></tr>
+  <tr><td>Simplify: ~60 files → 27, one README</td><td>Every one-off test tool, unused option and extra board type removed; easier to reason about and to report.</td></tr>
+</table>
+</div>
+
+<!-- ============================ APPENDIX C ============================ -->
+<div>
+<h2 style="margin-top:0">Appendix C. What's left to do, in order</h2>
+<h3>Tonight: start collecting</h3>
+<ol>
+  <li><b>Flash node A, then node B.</b> Plug each into the Pi in turn (or the Mac) and run <code>esp32/flash.sh node pi</code>
+    (or <code>esp32/flash.sh node</code> on the Mac). The bridge is already flashed. All three boards must use the same
+    encryption keys, which are in <code>esp32/common/include/secrets.h</code> on the Mac: don't delete that file.</li>
+  <li><b>Switch the Pi to the new services:</b> <code>ssh -t sebpi@sebpi sudo bash aircraft-noise/setup/install.sh</code> (needs your password).</li>
+  <li><b>Start:</b> clear any old-format database the old services created, then remove the pause file
+    (<code>ssh sebpi@sebpi rm aircraft-noise-data/PAUSED</code>).</li>
+  <li><b>Check after 10 minutes:</b> the health log should show both mics with few lost packets and no mic faults
+    (<code>journalctl -u bridge-link</code>).</li>
+</ol>
+<h3>This week</h3>
+<ol start="5">
+  <li><b>Calibrate:</b> both nodes in their cases, side by side, pink noise at about 50, 65 and 80 dB(A), a minute each,
+    phone meter alongside. Put the offsets in the mic table and redeploy.</li>
+  <li><b>Install the nodes</b> at their windows, then check the radio after a day (signal strength and lost packets).
+    The floor-3 bedroom is the one to watch.</li>
+  <li><b>Email Dr Boyle</b> briefly about sensing in a shared home (no audio recorded), as the brief asks for anything
+    involving people's data.</li>
+  <li><b>Keep a note of generative AI use</b> (Claude Code for code and design discussion), for the required notice.</li>
+</ol>
+<h3>While the data collects (weeks 2–4)</h3>
+<ol start="9">
+  <li><b>Event detector (v1):</b> per mic, find rises in level above the background; match each to the pass whose sound
+    would arrive then; mark the pass as heard. Tune the threshold on the first week's data.</li>
+  <li><b>Flight info:</b> download the VRS route files weekly; look up the route of each heard flight by callsign; aircraft
+    type and owner from adsbdb, cached per aircraft.</li>
+  <li><b>Announcer (v1):</b> reuse the Sonos-Test clip method; generate the spoken sentence; quiet hours and a minimum gap.</li>
+  <li><b>Classifier (v2):</b> build features from the octave bands around each moment, with labels from the passes
+    (aircraft, no aircraft, ambiguous dropped); train and compare with the rule (precision, recall).</li>
+  <li><b>Rarity (v2):</b> score each heard flight by how often its airline, type and route appear; announce only rare ones.</li>
+</ol>
+<h3>Deployment and report (weeks 5–7; deadline 10 December, 4 pm)</h3>
+<ol start="14">
+  <li><b>Publishing API and dashboard</b> on the Pi (read-only JSON and a web page: live levels, recent heard flights).</li>
+  <li><b>Analysis</b> on at least a week of data: run <code>analysis/summary.py</code>, plus detection performance,
+    announcement delay, packet loss and uptime, data volume, scalability, security and privacy.</li>
+  <li><b>Publish the code and data on GitHub:</b> export the dataset with distances and bearings only (no coordinates).</li>
+  <li><b>Write the report</b> (cover page and 6 pages, IEEE or ACM two-column) and record the 5-minute video. Include the
+    AI-use notice.</li>
+</ol>
+<p class="small">Suggested dates: collecting from 23 Oct · one week of data by 30 Oct · detector and flight info by 7 Nov
+· announcer by 14 Nov · classifier and rarity by 21 Nov · API, dashboard and analysis by 28 Nov · report and video
+by 7 Dec.</p>
+</div>
+</body>
+</html>
