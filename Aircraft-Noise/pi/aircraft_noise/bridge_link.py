@@ -74,7 +74,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))   # systemd stop: commit and exit
     db = connect()
-    names = {mac: mic["name"] for mac, mic in MICS.items()}
+    names = {mac.upper(): mic["name"] for mac, mic in MICS.items()}
     cal = {mic["name"]: mic["cal_db"] for mic in MICS.values()}
     stats = {name: MicStats() for name in cal}
     warned_unknown = set()
@@ -118,7 +118,8 @@ def main():
                 if msg.get("type") == "bridge":
                     last_heartbeat = time.monotonic()
                 elif msg.get("type") == "levels":
-                    mic = names.get(msg["mac"], msg["mac"])
+                    mac = msg["mac"].upper()   # the bridge prints MACs in lower case
+                    mic = names.get(mac, mac)
                     if mic not in cal and mic not in warned_unknown:
                         log.warning("levels from %s, which isn't in MICS in config.py", mic)
                         warned_unknown.add(mic)

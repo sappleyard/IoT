@@ -15,3 +15,11 @@ dependencies.lock
 
 # Archived databases (contain the receiver location; too big for GitHub)
 Aircraft-Noise/data-archive/
+# Private to this deployment: home location and the ESP-NOW encryption keys
+Aircraft-Noise/pi/location.json
+Aircraft-Noise/esp32/common/include/secrets.h
+# Analysis working copies (the database copy holds the location too)
+Aircraft-Noise/analysis/data/
+Aircraft-Noise/analysis/figures/
+# Conflict copies made by iCloud Desktop sync
+sdkconfig *
