@@ -10,6 +10,7 @@ import glob
 import json
 import logging
 import signal
+import sqlite3
 import sys
 import time
 
@@ -40,6 +41,19 @@ def open_bridge():
         return None
     log.info("connected to the bridge on %s", ports[0])
     return ser
+
+
+def write(db, rows):
+    """Store the buffered rows in one short transaction, so the database's write lock is held
+    for milliseconds and the ADS-B logger can always get its turn. True if it worked."""
+    try:
+        db.executemany(INSERT, rows)
+        db.commit()
+        return True
+    except sqlite3.OperationalError as e:   # busy: keep the rows and try again next second
+        db.rollback()
+        log.warning("couldn't write %d rows yet: %s", len(rows), e)
+        return False
 
 
 class MicStats:
@@ -81,7 +95,8 @@ def main():
     ser, buf = None, b""
     last_heartbeat = time.monotonic()
     next_summary = time.monotonic() + SUMMARY_EVERY_S
-    last_commit = time.monotonic()
+    pending = []      # rows waiting to be written, once a second
+    last_write = time.monotonic()
 
     try:
         while True:
@@ -123,14 +138,15 @@ def main():
                     if mic not in cal and mic not in warned_unknown:
                         log.warning("levels from %s, which isn't in MICS in config.py", mic)
                         warned_unknown.add(mic)
-                    db.execute(INSERT, (now, mic, msg["seq"], msg["uptime_ms"], msg["flags"],
-                                        msg["laeq"], msg["lamax"], *msg["bands"],
-                                        msg["rssi"], cal.get(mic)))
+                    pending.append((now, mic, msg["seq"], msg["uptime_ms"], msg["flags"],
+                                    msg["laeq"], msg["lamax"], *msg["bands"],
+                                    msg["rssi"], cal.get(mic)))
                     stats.setdefault(mic, MicStats()).add(msg)
 
-            if time.monotonic() - last_commit >= 1:
-                db.commit()
-                last_commit = time.monotonic()
+            if pending and time.monotonic() - last_write >= 1:
+                if write(db, pending):
+                    pending = []
+                last_write = time.monotonic()
 
             if time.monotonic() - last_heartbeat > BRIDGE_SILENT_S:
                 log.warning("no heartbeat from the bridge for %d s", BRIDGE_SILENT_S)
@@ -145,7 +161,8 @@ def main():
                 stats = {mic: MicStats() for mic in stats}
                 next_summary = time.monotonic() + SUMMARY_EVERY_S
     finally:
-        db.commit()
+        if pending:
+            write(db, pending)
 
 
 if __name__ == "__main__":

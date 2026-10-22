@@ -9,6 +9,7 @@ Runs as the adsb-logger service.
 import json
 import logging
 import math
+import sqlite3
 import time
 
 from .config import (AIRCRAFT_JSON, GROUND_MAX_ALT_FT, GROUND_MAX_SPEED_KT, MAX_RANGE_KM,
@@ -146,17 +147,25 @@ def main():
                 fresh = False
             if fresh:
                 rows = new_positions(data, receiver, last_saved)
-                db.executemany(INSERT, rows)
-                saved += len(rows)
                 update_passes(rows, passes, receiver_alt_m, geoid_m)
-                db.executemany(INSERT_PASS, finished_passes(passes, data["now"]))
-                if coverage is None:
-                    coverage = db.execute("INSERT INTO logger_coverage VALUES (?, ?)",
-                                          (data["now"], data["now"])).lastrowid
-                else:
-                    db.execute("UPDATE logger_coverage SET end_ts = ? WHERE rowid = ?",
-                               (data["now"], coverage))
-                db.commit()
+                done = finished_passes(passes, data["now"])
+                try:
+                    db.executemany(INSERT, rows)
+                    db.executemany(INSERT_PASS, done)
+                    if coverage is None:
+                        coverage = db.execute("INSERT INTO logger_coverage VALUES (?, ?)",
+                                              (data["now"], data["now"])).lastrowid
+                    else:
+                        db.execute("UPDATE logger_coverage SET end_ts = ? WHERE rowid = ?",
+                                   (data["now"], coverage))
+                    db.commit()
+                    saved += len(rows)
+                except sqlite3.OperationalError as e:
+                    # Database busy: skip this poll rather than crash. The gap ends the
+                    # coverage period, so labelling won't trust the missing second.
+                    db.rollback()
+                    coverage = None
+                    log.warning("database busy, skipped one poll: %s", e)
             else:
                 coverage = None   # a gap: the next fresh poll starts a new coverage period
 
