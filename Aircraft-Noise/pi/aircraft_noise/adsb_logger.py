@@ -11,19 +11,19 @@ import logging
 import math
 import time
 
-from .config import (AIRCRAFT_JSON, MAX_RANGE_KM, PASS_END_S, PASS_RADIUS_KM, PAUSE_FILE,
-                     STALE_AFTER_S, home_location)
+from .config import (AIRCRAFT_JSON, GROUND_MAX_ALT_FT, GROUND_MAX_SPEED_KT, MAX_RANGE_KM,
+                     PASS_END_S, PASS_RADIUS_KM, PAUSE_FILE, STALE_AFTER_S, home_location)
 from .db import connect, set_meta
 
 log = logging.getLogger("adsb-logger")
 
-INSERT = """INSERT INTO aircraft_positions
-    (ts, hex, callsign, lat, lon, alt_baro_ft, alt_geom_ft, speed_kt, track_deg, dist_km)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+INSERT = """INSERT INTO aircraft_positions (ts, hex, callsign, lat, lon, alt_baro_ft,
+    alt_geom_ft, speed_kt, track_deg, dist_km, category, on_ground)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
 INSERT_PASS = """INSERT INTO passes (hex, callsign, first_ts, last_ts, closest_ts,
-    closest_slant_km, closest_dist_km, closest_alt_ft, speed_kt, track_deg)
+    closest_slant_km, closest_dist_km, closest_alt_ft, alt_is_gps, speed_kt, track_deg, category)
     VALUES (:hex, :callsign, :first_ts, :last_ts, :closest_ts, :closest_slant_km,
-            :closest_dist_km, :closest_alt_ft, :speed_kt, :track_deg)"""
+            :closest_dist_km, :closest_alt_ft, :alt_is_gps, :speed_kt, :track_deg, :category)"""
 
 
 def read_json(path):
@@ -39,19 +39,32 @@ def ground_km(a, b):
     return 2 * 6371.0 * math.asin(math.sqrt(h))
 
 
-def slant_km(dist_km, alt_ft):
-    """Straight-line distance to an aircraft (ground distance if the altitude is unknown)."""
-    return math.hypot(dist_km, (alt_ft or 0) * 0.3048 / 1000)
+def slant_km(dist_km, alt_ft, receiver_alt_m):
+    """Straight-line distance from the receiver to an aircraft (alt_ft above sea level)."""
+    height_km = ((alt_ft or 0) * 0.3048 - receiver_alt_m) / 1000
+    return math.hypot(dist_km, height_km)
 
 
-def update_passes(rows, passes):
-    """Track each aircraft's closest approach while it's within PASS_RADIUS_KM.
+def on_ground(row):
+    """True for an aircraft on the ground: flagged so, or very low and very slow."""
+    _, _, _, _, _, alt_baro, alt_geom, speed, _, _, _, ground = row
+    alt = alt_geom if alt_geom is not None else alt_baro
+    return bool(ground) or (alt is not None and alt < GROUND_MAX_ALT_FT
+                            and speed is not None and speed < GROUND_MAX_SPEED_KT)
 
-    passes maps hex -> the pass in progress (a dict shaped like a passes row).
+
+def update_passes(rows, passes, receiver_alt_m):
+    """Track each airborne aircraft's closest approach while it's within PASS_RADIUS_KM.
+
+    passes maps hex -> the pass in progress (a dict shaped like a passes row). GPS altitude
+    is used when the aircraft sends it (almost all do); otherwise pressure altitude.
     """
-    for ts, hex_, callsign, _, _, alt_baro, alt_geom, speed, track, dist in rows:
+    for row in rows:
+        ts, hex_, callsign, _, _, alt_baro, alt_geom, speed, track, dist, category, _ = row
+        if on_ground(row):
+            continue
         alt = alt_geom if alt_geom is not None else alt_baro
-        slant = slant_km(dist, alt)
+        slant = slant_km(dist, alt, receiver_alt_m)
         if slant > PASS_RADIUS_KM:
             continue
         p = passes.get(hex_)
@@ -59,9 +72,11 @@ def update_passes(rows, passes):
             p = passes[hex_] = {"hex": hex_, "first_ts": ts, "closest_slant_km": math.inf}
         p["last_ts"] = ts
         p["callsign"] = callsign or p.get("callsign")
+        p["category"] = category or p.get("category")
         if slant < p["closest_slant_km"]:
             p.update(closest_ts=ts, closest_slant_km=round(slant, 3), closest_dist_km=dist,
-                     closest_alt_ft=alt, speed_kt=speed, track_deg=track)
+                     closest_alt_ft=alt, alt_is_gps=int(alt_geom is not None),
+                     speed_kt=speed, track_deg=track)
 
 
 def finished_passes(passes, now):
@@ -85,9 +100,10 @@ def new_positions(data, receiver, last_saved):
         if dist > MAX_RANGE_KM:
             continue
         last_saved[hex_] = ts
-        alt_baro = 0 if a.get("alt_baro") == "ground" else a.get("alt_baro")
+        ground = a.get("alt_baro") == "ground"
         rows.append((ts, hex_, a.get("flight", "").strip() or None, a["lat"], a["lon"],
-                     alt_baro, a.get("alt_geom"), a.get("gs"), a.get("track"), round(dist, 3)))
+                     0 if ground else a.get("alt_baro"), a.get("alt_geom"), a.get("gs"),
+                     a.get("track"), round(dist, 3), a.get("category"), int(ground)))
     return rows
 
 
@@ -95,9 +111,11 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     db = connect()
 
-    receiver = home_location()
-    set_meta(db, "receiver_lat", receiver[0])
-    set_meta(db, "receiver_lon", receiver[1])
+    lat, lon, receiver_alt_m = home_location()
+    receiver = (lat, lon)
+    set_meta(db, "receiver_lat", lat)
+    set_meta(db, "receiver_lon", lon)
+    set_meta(db, "receiver_alt_m", receiver_alt_m)
     db.commit()
 
     last_saved = {}
@@ -121,7 +139,7 @@ def main():
                 rows = new_positions(data, receiver, last_saved)
                 db.executemany(INSERT, rows)
                 saved += len(rows)
-                update_passes(rows, passes)
+                update_passes(rows, passes, receiver_alt_m)
                 db.executemany(INSERT_PASS, finished_passes(passes, data["now"]))
                 if coverage is None:
                     coverage = db.execute("INSERT INTO logger_coverage VALUES (?, ?)",
