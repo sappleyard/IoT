@@ -122,7 +122,7 @@ Do this with both nodes in their weatherproof cases, so the case is part of the 
    shows whether a case colours some bands.
 4. Put the offsets in `MICS` in `pi/aircraft_noise/config.py` and deploy. No reflash needed.
 
-Current offsets (A −6, B −7) are rough estimates from an uncased test.
+Current offsets: A −6, B −6. Side by side the mics agree within 0.1 dB(A) (22 Oct); the absolute −6 comes from a phone app, so it's approximate until the pink-noise calibration.
 
 ## Analysis
 
