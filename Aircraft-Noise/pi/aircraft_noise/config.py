@@ -52,11 +52,12 @@ BANDS_HZ = [63, 125, 250, 500, 1000, 2000, 4000]   # octave-band centres, as the
 
 # The mics, keyed by the MAC address of the node board they're on. cal_db is added to the
 # node's levels to correct that mic; it belongs to the mic, so move it if a mic moves.
-# Both are first estimates (2026-10-21, against a phone sound-meter app, which is only good
-# to about +-5 dB): recalibrate once the nodes are in their cases (see README).
+# Both are first estimates, recalibrate once the nodes are in their cases (see README):
+#   B6:50's mic: -6, against a phone sound-meter app on 2026-10-21 (phones: about +-5 dB)
+#   E0:EC's mic (the former bridge mic): -7, from reading 1 dB above B6:50's side by side
 MICS = {
-    "28:05:A5:35:E0:EC": {"name": "A", "cal_db": -7.0,
+    "28:05:A5:35:B6:50": {"name": "A", "cal_db": -6.0,
                           "location": "Living room, north-facing window, floor 2"},
-    "28:05:A5:35:B6:50": {"name": "B", "cal_db": -6.0,
+    "28:05:A5:35:E0:EC": {"name": "B", "cal_db": -7.0,
                           "location": "Bedroom, south-facing window, floor 3"},
 }

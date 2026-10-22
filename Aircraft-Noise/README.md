@@ -81,8 +81,8 @@ Three ESP32 dev boards (ESP32-D0WD-V3, CH340 USB, 4 MB flash), all on mains powe
 | Board | MAC | Role |
 |---|---|---|
 | Bridge | `28:05:A5:34:6B:38` | On the Pi's USB. No mic. |
-| Node A | `28:05:A5:35:E0:EC` | Living room, north-facing window, floor 2 |
-| Node B | `28:05:A5:35:B6:50` | Bedroom, south-facing window, floor 3 |
+| Node A | `28:05:A5:35:B6:50` | Living room, north-facing window, floor 2 |
+| Node B | `28:05:A5:35:E0:EC` | Bedroom, south-facing window, floor 3 |
 
 INMP441 wiring on each node: VDD → 3V3, GND → GND, **L/R → GND**, SCK → GPIO 26, WS → GPIO 25,
 SD → GPIO 33. Keep the wires short. A faulty INMP441 can short the supply: that one crashed the
@@ -122,7 +122,7 @@ Do this with both nodes in their weatherproof cases, so the case is part of the 
    shows whether a case colours some bands.
 4. Put the offsets in `MICS` in `pi/aircraft_noise/config.py` and deploy. No reflash needed.
 
-Current offsets (A −7, B −6) are rough estimates from an uncased test.
+Current offsets (A −6, B −7) are rough estimates from an uncased test.
 
 ## Analysis
 
