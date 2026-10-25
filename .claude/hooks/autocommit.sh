@@ -16,7 +16,5 @@ rel=$(python3 -c 'import os,sys; print(os.path.relpath(sys.argv[1]))' "$file")
 git add -- "$rel" 2>/dev/null || exit 0
 git diff --cached --quiet && exit 0
 
-git commit -q -m "Update $rel
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git commit -q -m "Update $rel"
 git push -q

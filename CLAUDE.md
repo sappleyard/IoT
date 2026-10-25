@@ -25,3 +25,5 @@ Home IoT projects. Each project lives in its own subfolder.
   (`.claude/hooks/autocommit.sh`) commits and pushes each file Claude edits. Changes made
   any other way still need committing and pushing by hand.
 - Python code uses the standard library only unless a dependency is clearly worth it.
+- No AI attribution in git: no `Co-Authored-By: Claude` (or similar) lines in commit messages or
+  PR descriptions. History was rewritten on 2026-10-25 to remove them.
