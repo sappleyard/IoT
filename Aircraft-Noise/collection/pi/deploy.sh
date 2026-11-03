@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copy the Pi code from this Mac to the Pi (~/aircraft-noise) and restart the services.
 #
-#   Aircraft-Noise/pi/deploy.sh
+#   Aircraft-Noise/collection/pi/deploy.sh
 #
 # The first time, also run:  ssh -t sebpi@sebpi sudo bash aircraft-noise/setup/install.sh
 # Data lives in ~/aircraft-noise-data on the Pi, so a deploy never touches it.

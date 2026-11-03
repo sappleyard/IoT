@@ -1,29 +1,35 @@
+# --- PRIVATE: never commit -----------------------------------------------------------------
+# Unanchored on purpose, so they stay ignored wherever a folder is moved to.
+# Home location and the ESP-NOW encryption keys
+location.json
+secrets.h
+# Databases and anything copied or derived from them (they hold the home location)
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+data-archive/
+# Aircraft-Noise working folders on the Mac: database copy, figures, windows, models, results
+Aircraft-Noise/analysis/data/
+Aircraft-Noise/analysis/figures/
+Aircraft-Noise/model/data/
+
+# --- Generated --------------------------------------------------------------------------------
+# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
-.DS_Store
 .env
-
-# ESP-IDF build output
+# ESP-IDF build output (Aircraft-Noise/collection/esp32/*): rebuilt by flash.sh
 build/
 build_*/
 sdkconfig
 sdkconfig.old
 managed_components/
 dependencies.lock
-# Conflict copies made by iCloud Desktop sync
-sdkconfig *
 
-# PRIVATE: never commit. These patterns match wherever the folders are moved to.
-# Home location and the ESP-NOW encryption keys
-location.json
-secrets.h
-# Databases and data copies (they contain the home location; too big for GitHub)
-*.db
-*.db-wal
-*.db-shm
-data-archive/
-**/analysis/data/
-**/analysis/figures/
-**/model/data/
+# --- Clutter ----------------------------------------------------------------------------------
+.DS_Store
+# Conflict copies made by iCloud Desktop sync ("sdkconfig 2")
+sdkconfig *

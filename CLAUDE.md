@@ -11,13 +11,15 @@ Home IoT projects. Each project lives in its own subfolder.
 
 ## Projects
 
-- [ADS-B-Test/](ADS-B-Test/): receive aircraft ADS-B signals on the Pi with readsb and read them from Python.
 - [Aircraft-Noise/](Aircraft-Noise/): two ESP32 + INMP441 mic nodes send per-second levels (LAeq, LAmax,
   7 octave bands; never audio) over ESP-NOW long range to a bridge ESP32 on the Pi's USB; Pi services
-  log those and ADS-B positions to SQLite (`~/aircraft-noise-data/noise.db`). Kept deliberately small:
-  `esp32/` (ESP-IDF 5.5, one firmware for both nodes, mics identified by MAC) and `pi/` (four Python
-  files). The README is the single source of docs. Old data is archived (git-ignored) in
-  `Aircraft-Noise/data-archive/`. Privacy matters to the user: don't add audio recording.
+  log those and ADS-B positions to SQLite (`~/aircraft-noise-data/noise.db`). Folders by where they run:
+  `collection/` (deployed: `esp32/`, ESP-IDF 5.5, one firmware for both nodes, mics identified by MAC;
+  `pi/`, four Python files, the only folder `deploy.sh` copies to the Pi), then Mac-only `analysis/`
+  and `model/` (classifier training: never deployed), `docs/` and the git-ignored `data-archive/`.
+  The project README is the single source of docs. Privacy matters to the user: don't add audio
+  recording, and never commit the home location (`location.json`, databases, `analysis/data/`).
+- [Sonos-Test/](Sonos-Test/): play a sound on the Sonos speaker from the Pi.
 
 ## Workflow
 

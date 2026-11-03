@@ -55,24 +55,37 @@ packets; `uptime_ms` going backwards means the node restarted.
 
 ## Files
 
+Grouped by where each part runs. Only `collection/` runs on the hardware; `deploy.sh` copies
+just `collection/pi/` to the Pi, so analysis and training code never goes there.
+
 ```
-analysis/summary.py         report figures + summary from a copy of the Pi's database
-analysis/audibility.py      how audible aircraft are by distance/direction/time; fits the label model
-esp32/
-  flash.sh                  build + flash:  ./flash.sh bridge|node [pi|<port>]
-  common/                   shared by both firmwares: packet format and board list (protocol.h),
+collection/                 COLLECTING THE DATA (runs on the boards and the Pi)
+  esp32/
+    flash.sh                build + flash:  ./flash.sh bridge|node [pi|<port>]
+    common/                 shared by both firmwares: packet format and board list (protocol.h),
                             radio; secrets.h holds the encryption keys (made by flash.sh, git-ignored)
-  bridge/main/main.c        relays node packets to the Pi as JSON lines
-  node/main/main.c, mic.c   measures the mic, sends a packet a second
-pi/
-  deploy.sh                 copy the Pi code to the Pi and restart the services
-  location.json             home location {"lat": .., "lon": ..}: git-ignored, never published
-  setup/                    install.sh and the two systemd services
-  aircraft_noise/
-    config.py               every setting, including the mics (MAC, name, location, calibration)
-    db.py                   the database schema
-    adsb_logger.py          service: aircraft positions -> database
-    bridge_link.py          service: mic levels -> database, health log every 10 min
+    bridge/main/main.c      relays node packets to the Pi as JSON lines
+    node/main/main.c, mic.c measures the mic, sends a packet a second
+  pi/
+    deploy.sh               copy this folder to the Pi and restart the services
+    location.json           home location {"lat": .., "lon": ..}: git-ignored, never published
+    setup/                  install.sh and the two systemd services
+    aircraft_noise/
+      config.py             every setting, including the mics (MAC, name, location, calibration)
+      db.py                 the database schema
+      adsb_logger.py        service: aircraft positions -> database
+      bridge_link.py        service: mic levels -> database, health log every 10 min
+analysis/                   EXPLORING THE DATA (Mac)
+  summary.py                report figures + summary from a copy of the Pi's database
+  audibility.py             how audible aircraft are by distance/direction/time; fits the label model
+  data/, figures/           database copy and outputs (git-ignored: they hold the home location)
+model/                      THE AIRCRAFT CLASSIFIER (Mac)
+  dataset.py                labelled 30 s windows from the database copy
+  train.py                  trains and compares the detectors (CNN, boosting, threshold)
+  data/                     windows, models, results (git-ignored)
+docs/                       design summary, training summaries
+  reference/                Heathrow's runway alternation programme, departure routes map
+data-archive/               old databases (git-ignored)
 ```
 
 ## Hardware
@@ -96,10 +109,10 @@ updating close aircraft about once a second, and only nearby aircraft matter for
 
 ESP-IDF 5.5 is installed on the Mac (`~/esp/esp-idf`). Pi: `ssh sebpi@sebpi` over Tailscale.
 
-0. Create `pi/location.json` with the home location: `{"lat": 51.5, "lon": -0.1}`.
+0. Create `collection/pi/location.json` with the home location: `{"lat": 51.5, "lon": -0.1}`.
 1. Flash the boards (each plugged into the Pi, or the Mac with `./flash.sh node`):
-   `esp32/flash.sh bridge pi`, then `esp32/flash.sh node pi` for each node.
-2. Copy the code to the Pi: `pi/deploy.sh`
+   `collection/esp32/flash.sh bridge pi`, then `collection/esp32/flash.sh node pi` for each node.
+2. Copy the code to the Pi: `collection/pi/deploy.sh`
 3. Once, on the Pi (needs your password): `ssh -t sebpi@sebpi sudo bash aircraft-noise/setup/install.sh`
 4. Start collecting: `ssh sebpi@sebpi rm aircraft-noise-data/PAUSED`
 
@@ -121,7 +134,7 @@ Do this with both nodes in their weatherproof cases, so the case is part of the 
    (same sound, same moment); the phone reading minus each mic gives the absolute offset
    (only as good as the phone, about ±5 dB). Pink noise covers every octave band, so it also
    shows whether a case colours some bands.
-4. Put the offsets in `MICS` in `pi/aircraft_noise/config.py` and deploy. No reflash needed.
+4. Put the offsets in `MICS` in `collection/pi/aircraft_noise/config.py` and deploy. No reflash needed.
 
 Current offsets: A −6, B −6. Side by side the mics agree within 0.1 dB(A) (22 Oct); the absolute −6 comes from a phone app, so it's approximate until the pink-noise calibration.
 

@@ -138,7 +138,7 @@ unique-only filter essential for everyday use. British Airways alone made 454 of
 <ul>
   <li><b>No audio is recorded or stored</b> anywhere: privacy by design, and the main ethics point. The first trial's
     audio was deleted.</li>
-  <li><b>The home location</b> lives only in <code>pi/location.json</code>, which git ignores. Published data will carry
+  <li><b>The home location</b> lives only in <code>collection/pi/location.json</code>, which git ignores. Published data will carry
     distances and bearings from the receiver, never coordinates, because aircraft positions around a receiver reveal where it is.</li>
   <li><b>Radio:</b> AES-CCMP encrypted ESP-NOW. The keys are generated randomly by <code>flash.sh</code> and kept in a
     git-ignored <code>secrets.h</code>. The bridge rejects unknown boards and wrong packet versions.</li>
@@ -318,9 +318,9 @@ pass history.</p>
 <h2 style="margin-top:0">Appendix C. What's left to do, in order</h2>
 <h3>Tonight: start collecting</h3>
 <ol>
-  <li><b>Flash node A, then node B.</b> Plug each into the Pi in turn (or the Mac) and run <code>esp32/flash.sh node pi</code>
-    (or <code>esp32/flash.sh node</code> on the Mac). The bridge is already flashed. All three boards must use the same
-    encryption keys, which are in <code>esp32/common/include/secrets.h</code> on the Mac: don't delete that file.</li>
+  <li><b>Flash node A, then node B.</b> Plug each into the Pi in turn (or the Mac) and run <code>collection/esp32/flash.sh node pi</code>
+    (or <code>collection/esp32/flash.sh node</code> on the Mac). The bridge is already flashed. All three boards must use the same
+    encryption keys, which are in <code>collection/esp32/common/include/secrets.h</code> on the Mac: don't delete that file.</li>
   <li><b>Switch the Pi to the new services:</b> <code>ssh -t sebpi@sebpi sudo bash aircraft-noise/setup/install.sh</code> (needs your password).</li>
   <li><b>Start:</b> clear any old-format database the old services created, then remove the pause file
     (<code>ssh sebpi@sebpi rm aircraft-noise-data/PAUSED</code>).</li>
