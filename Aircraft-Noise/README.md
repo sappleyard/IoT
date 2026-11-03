@@ -194,6 +194,9 @@ Test the speaker: `ssh sebpi@sebpi 'cd aircraft-announcer && .venv/bin/python -m
 Settings (volume, quiet hours, gap, distances) are in `announcer/aircraft_announcer/config.py`:
 change, then `announcer/deploy.sh`.
 
+**Pausing announcements** (heard aircraft are still logged, with status `paused`; no restart):
+`ssh sebpi@sebpi touch aircraft-noise-data/ANNOUNCER_PAUSED`, and `rm` it to resume.
+
 **Using a newly trained model:**
 1. `python3 model/dataset.py` (latest data), then
    `python3 model/train.py --heli-weight 4 --export cnn-2026-12-01` (any name). This writes

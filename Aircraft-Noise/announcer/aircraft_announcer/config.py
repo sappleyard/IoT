@@ -39,6 +39,9 @@ TRACK_HISTORY_S = 90       # how long each aircraft's positions are kept for mat
 DATA_DIR = Path(os.environ.get("AIRCRAFT_NOISE_DATA", Path.home() / "aircraft-noise-data"))
 NOISE_DB = DATA_DIR / "noise.db"            # read only: written by the collection services
 ANNOUNCER_DB = DATA_DIR / "announcer.db"    # heard aircraft and the lookup cache
+# While this file exists nothing is spoken (heard aircraft are still logged):
+#   touch ~/aircraft-noise-data/ANNOUNCER_PAUSED   (rm it to resume; no restart needed)
+PAUSE_FILE = DATA_DIR / "ANNOUNCER_PAUSED"
 CACHE_DIR = DATA_DIR / "announcer-cache"    # route and airport files, voice, spoken clips
 AIRCRAFT_JSON = "/run/readsb/aircraft.json"
 # The home location, from the collection code's location.json (deployed to ~/aircraft-noise).

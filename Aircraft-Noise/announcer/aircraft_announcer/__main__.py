@@ -7,7 +7,9 @@ do, find which aircraft it is and say so on the Sonos.
     python -m aircraft_announcer --dry-run --model NAME   # try another exported model live
 
 Each heard aircraft gets one row in announcer.db's `heard` table, announced or not (quiet hours,
-speaker failure), with what was said: the history v2's "unique aircraft only" filter will use.
+paused, speaker failure), with what was said: the history v2's "unique aircraft only" filter
+will use. While ~/aircraft-noise-data/ANNOUNCER_PAUSED exists nothing is spoken, but heard
+aircraft are still logged:  touch it to pause,  rm it to resume.
 The collection database is only read, so collecting carries on exactly as before.
 """
 
@@ -44,7 +46,7 @@ CREATE TABLE IF NOT EXISTS heard (
     destination    TEXT,
     aircraft_model TEXT,
     text           TEXT,            -- the announcement (said, or would have been)
-    status         TEXT NOT NULL    -- announced / quiet hours / dry run / speaker failed
+    status         TEXT NOT NULL    -- announced / quiet hours / paused / dry run / speaker failed
 );
 CREATE INDEX IF NOT EXISTS heard_ts ON heard (ts);
 """
@@ -81,14 +83,15 @@ class Announcer(threading.Thread):
         db.executescript(SCHEMA)
         lookups = Lookups(db)
         while True:
-            heard, speak = self.jobs.get()
+            heard, silent = self.jobs.get()    # silent: why not to speak, or None
+            speak = silent is None
             started = time.time()
             if speak:
                 self.next_free = started + C.MIN_GAP_S
             try:
                 d = lookups.details(heard)
                 text = sentence(d)
-                status = "quiet hours" if not speak else "dry run" if self.dry_run else None
+                status = silent or ("dry run" if self.dry_run else None)
                 if status is None:
                     clip = self.clips_dir / f"{int(started)}.wav"
                     self.voice.to_wav(text, clip)
@@ -119,6 +122,9 @@ def run(dry_run, model):
     log.info("quiet hours %02d:00-%02d:00, at least %d s between announcements, volume %d%s",
              C.QUIET_FROM_HOUR, C.QUIET_UNTIL_HOUR, C.MIN_GAP_S, C.VOLUME,
              " (dry run: nothing is spoken)" if dry_run else "")
+    if C.PAUSE_FILE.exists():
+        log.info("paused: nothing will be spoken while %s exists (heard aircraft are still logged)",
+                 C.PAUSE_FILE)
     tracker = Tracker()
     announcer = Announcer(model, dry_run)
     announcer.start()
@@ -147,11 +153,12 @@ def run(dry_run, model):
                 if match is None:
                     stats["no aircraft matched"] += 1
                 elif tick - handled.get(match["hex"], 0) > C.REANNOUNCE_AFTER_S:
-                    speak = not quiet_hours(tick)
-                    if not speak or not announcer.busy(tick):
+                    silent = ("paused" if C.PAUSE_FILE.exists()
+                              else "quiet hours" if quiet_hours(tick) else None)
+                    if silent or not announcer.busy(tick):
                         handled[match["hex"]] = tick
                         announcer.jobs.put(({**match, "ts": t, "mics": ",".join(fired),
-                                             "probability": float(max(probs))}, speak))
+                                             "probability": float(max(probs))}, silent))
                     # else: still speaking the previous one; try again next second while
                     # this aircraft is still being heard
 
