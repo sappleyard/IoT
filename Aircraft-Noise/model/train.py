@@ -5,6 +5,8 @@
     python3 model/train.py --cv             # every fold is the test fold once: mean +- spread
     python3 model/train.py --chunk-min 30   # longer chunks (fewer windows lost to the guards)
     python3 model/train.py --hours 7-23     # daytime only (checks it isn't learning the clock)
+    python3 model/train.py --cv --heli-weight 5   # helicopter windows count 5x in training
+                                                  # (results_cv_heli5.txt, beside the default's)
 
 Needs torch, numpy and scikit-learn (Mac venv). Writes model/data/model.pt and results.txt.
 
@@ -87,14 +89,16 @@ class AircraftCNN(nn.Module):
         return self.head(torch.cat([h.mean(dim=2), h.amax(dim=2)], dim=1)).squeeze(1)
 
 
-def train_cnn(x_tr, y_tr, x_va, y_va, epochs, seed=0):
-    """Train with class-balanced loss; keep the epoch with the best validation loss."""
+def train_cnn(x_tr, y_tr, x_va, y_va, epochs, seed=0, w_tr=None):
+    """Train with class-balanced loss, each training window's loss times w_tr (default 1);
+    keep the epoch with the best (unweighted) validation loss."""
     torch.manual_seed(seed)
     model = AircraftCNN(channels=x_tr.shape[1])
     pos_weight = torch.tensor((y_tr == 0).sum() / max((y_tr == 1).sum(), 1), dtype=torch.float32)
-    loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight, reduction="none")
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     xt, yt = torch.from_numpy(x_tr), torch.from_numpy(y_tr.astype(np.float32))
+    wt = torch.from_numpy(np.ones(len(y_tr), np.float32) if w_tr is None else w_tr.astype(np.float32))
     xv, yv = torch.from_numpy(x_va), torch.from_numpy(y_va.astype(np.float32))
     best, best_state = np.inf, None
     for epoch in range(epochs):
@@ -103,12 +107,12 @@ def train_cnn(x_tr, y_tr, x_va, y_va, epochs, seed=0):
         for i in range(0, len(xt), 256):
             b = order[i:i + 256]
             opt.zero_grad()
-            loss = loss_fn(model(xt[b]), yt[b])
+            loss = (loss_fn(model(xt[b]), yt[b]) * wt[b]).mean()
             loss.backward()
             opt.step()
         model.eval()
         with torch.no_grad():
-            val = loss_fn(model(xv), yv).item()
+            val = loss_fn(model(xv), yv).mean().item()
         print(f"  epoch {epoch + 1:2d}: train loss {loss.item():.3f}, validation loss {val:.3f}")
         if val < best:
             best, best_state = val, {k: v.clone() for k, v in model.state_dict().items()}
@@ -253,11 +257,13 @@ def describe_sets(d, sets, guarded, say):
     say(f"  {int(guarded.sum())} windows ({100 * guarded.mean():.1f}%) dropped by the guards")
 
 
-def run(d, tr, va, te, epochs, say, seed=0):
+def run(d, tr, va, te, epochs, say, seed=0, heli_weight=1.0):
     """Train the three detectors on tr, choose thresholds on va, report on te.
+    Helicopter windows' training loss counts heli_weight times (they're ~3% of passes).
     Returns (cnn model, scale, cnn threshold, summary numbers for the test fold)."""
     # Scale each channel by its spread in the training data (the values are dB above background).
     x, y = d["x"], d["y"]
+    w_tr = np.where((d["heli"][tr] == 1) & (y[tr] == 1), heli_weight, 1.0)
     scale = x[tr].std(axis=(0, 2), keepdims=True)[0] + 1e-6
     xs = (x / scale).astype(np.float32)
     scores = {}
@@ -270,14 +276,14 @@ def run(d, tr, va, te, epochs, say, seed=0):
 
     from sklearn.ensemble import HistGradientBoostingClassifier
     gb = HistGradientBoostingClassifier(max_iter=200, class_weight="balanced", random_state=seed)
-    gb.fit(summary_features(x[tr]), y[tr])
+    gb.fit(summary_features(x[tr]), y[tr], sample_weight=w_tr)
     g_thr = best_threshold(gb.predict_proba(summary_features(x[va]))[:, 1], y[va])
     scores["boosting"] = (gb.predict_proba(summary_features(x[te]))[:, 1], g_thr)
     report("boosting", scores["boosting"][0] >= g_thr, d, te, say)
 
     print("Training the CNN:")
     started = time.time()
-    model = train_cnn(xs[tr], y[tr], xs[va], y[va], epochs, seed)
+    model = train_cnn(xs[tr], y[tr], xs[va], y[va], epochs, seed, w_tr)
     c_thr = best_threshold(cnn_scores(model, xs[va]), y[va])
     scores["cnn"] = (cnn_scores(model, xs[te]), c_thr)
     report("cnn", scores["cnn"][0] >= c_thr, d, te, say)
@@ -299,8 +305,16 @@ def summarise(score, thr, d, s):
     def rate(m):
         return pred[m].mean() if m.sum() >= 100 else np.nan
 
+    def passes_found(heli):
+        """(mic, pass) pairs with any window over the threshold, and how many there were."""
+        m = (y == 1) & (d["heli"][s] == heli)
+        keys = d["mic"][s][m].astype(np.int64) * 10**7 + d["pass_id"][s][m]
+        _, inv = np.unique(keys, return_inverse=True)
+        return (int((np.bincount(inv, weights=pred[m]) > 0).sum()), int(inv.max() + 1 if m.any() else 0))
+
     return {"auc": auc(np.ones_like(day)), "auc_day": auc(day), "recall": rate(y == 1),
-            "fa_day": rate((y == 0) & day), "fa_night": rate((y == 0) & ~day)}
+            "fa_day": rate((y == 0) & day), "fa_night": rate((y == 0) & ~day),
+            "planes": passes_found(0), "helis": passes_found(1)}
 
 
 def main():
@@ -311,7 +325,14 @@ def main():
     parser.add_argument("--folds", type=int, default=FOLDS)
     parser.add_argument("--hours", help="only use windows in these local hours, e.g. 7-23")
     parser.add_argument("--epochs", type=int, default=15)
+    parser.add_argument("--heli-weight", type=float, default=1.0,
+                        help="helicopter windows' training loss counts this many times")
     args = parser.parse_args()
+    # Results of weighted runs go to their own files, so they can be compared with the default.
+    suffix = f"_heli{args.heli_weight:g}" if args.heli_weight != 1 else ""
+    results = RESULTS.with_name(f"results{suffix}.txt")
+    results_cv = RESULTS.with_name(f"results_cv{suffix}.txt")
+    model_path = MODEL.with_name(f"model{suffix}.pt")
     if 60 % args.chunk_min and args.chunk_min % 60:
         raise SystemExit("--chunk-min must divide an hour (5, 10, 15, 20, 30) or be whole hours")
 
@@ -335,19 +356,20 @@ def main():
 
     say(f"{len(starts)} chunks of {args.chunk_min} min, dealt into {args.folds} folds "
         f"(seed {args.seed}); guard {guard_s} s"
-        + (f"; hours {args.hours}" if args.hours else ""))
+        + (f"; hours {args.hours}" if args.hours else "")
+        + (f"; helicopter weight {args.heli_weight:g}" if args.heli_weight != 1 else ""))
     say("Chunks of each kind: " + ", ".join(f"{kind_name(k)} {(kinds == k).sum()}" for k in range(6)))
 
     if not args.cv:
         tr, va, te, guarded = split(d, starts, 60 * args.chunk_min, fold, 0, 1, guard_s, use)
         describe_sets(d, [("train", tr), ("validation", va), ("test", te)], guarded, say)
-        model, scale, c_thr, _ = run(d, tr, va, te, args.epochs, say, args.seed)
+        model, scale, c_thr, _ = run(d, tr, va, te, args.epochs, say, args.seed, args.heli_weight)
         torch.save({"state_dict": model.state_dict(), "scale": scale, "threshold": float(c_thr),
                     "channels": list(d["channels"]), "window_s": d["x"].shape[2],
-                    "chunk_min": args.chunk_min, "seed": args.seed,
-                    "train_chunks": starts[np.unique(d["chunk"][tr])].tolist()}, MODEL)
-        RESULTS.write_text("\n".join(report_lines) + "\n")
-        print(f"\nModel -> {MODEL}\nResults -> {RESULTS}")
+                    "chunk_min": args.chunk_min, "seed": args.seed, "heli_weight": args.heli_weight,
+                    "train_chunks": starts[np.unique(d["chunk"][tr])].tolist()}, model_path)
+        results.write_text("\n".join(report_lines) + "\n")
+        print(f"\nModel -> {model_path}\nResults -> {results}")
         return
 
     folds = []
@@ -356,10 +378,14 @@ def main():
                                     (test_fold + 1) % args.folds, guard_s, use)
         say(f"\n=== Test fold {test_fold + 1} of {args.folds} ===")
         describe_sets(d, [("train", tr), ("validation", va), ("test", te)], guarded, say)
-        folds.append(run(d, tr, va, te, args.epochs, say, args.seed)[3])
-    say(f"\nCross-validation over {len(folds)} folds: mean +- standard deviation")
+        folds.append(run(d, tr, va, te, args.epochs, say, args.seed, args.heli_weight)[3])
+    say(f"\nCross-validation over {len(folds)} folds: mean +- standard deviation; "
+        "passes detected: all folds' test passes together")
     for name in folds[0]:
         parts = []
+        for key, label in [("planes", "aeroplanes"), ("helis", "helicopters")]:
+            found, total = np.array([f[name][key] for f in folds]).sum(axis=0)
+            parts.append(f"{label} {100 * found / max(total, 1):.0f}% of {total}")
         for key, label in [("auc", "AUC"), ("auc_day", "daytime AUC"), ("recall", "recall"),
                            ("fa_day", "false alarms by day"), ("fa_night", "false alarms at night")]:
             v = np.array([f[name][key] for f in folds], float)
@@ -369,8 +395,8 @@ def main():
             unit = "%" if pct == 100 else ""
             parts.append(f"{label} {pct * v.mean():{fmt}}{unit} +- {pct * v.std():{fmt}}{unit}")
         say(f"{name:<10} " + ", ".join(parts))
-    RESULTS.with_name("results_cv.txt").write_text("\n".join(report_lines) + "\n")
-    print(f"\nResults -> {RESULTS.with_name('results_cv.txt')}")
+    results_cv.write_text("\n".join(report_lines) + "\n")
+    print(f"\nResults -> {results_cv}")
 
 
 if __name__ == "__main__":
