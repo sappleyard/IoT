@@ -57,6 +57,7 @@ packets; `uptime_ms` going backwards means the node restarted.
 
 ```
 analysis/summary.py         report figures + summary from a copy of the Pi's database
+analysis/audibility.py      how audible aircraft are by distance/direction/time; fits the label model
 esp32/
   flash.sh                  build + flash:  ./flash.sh bridge|node [pi|<port>]
   common/                   shared by both firmwares: packet format and board list (protocol.h),
@@ -130,6 +131,14 @@ Current offsets: A −6, B −6. Side by side the mics agree within 0.1 dB(A) (2
 summary to `analysis/figures/`: levels over time, the daily profile, octave-band spectra of
 aircraft vs quiet, and the sound propagation model (LAmax = L1 - 20 log10(r) - alpha r, fitted
 to the passes the mics heard, background-corrected), with detection rate by distance.
+
+`python3 analysis/audibility.py --local` measures how far each aircraft's sound stands out from
+aircraft-free moments of the same period (an AUC: 0.5 = no different, 1 = always louder) against
+distance, direction, type and day/night, out to 20 km, and fits a model that predicts it from
+ADS-B alone (`analysis/data/audibility.json`). `model/dataset.py` labels windows with it instead
+of fixed distances. Findings so far: by day aircraft beyond ~3 km can't be told from household
+noise by level; at night they stand out to ~13 km; the approach path north of the house is much
+louder than the one south of it, despite being further away.
 
 ## Next steps
 
