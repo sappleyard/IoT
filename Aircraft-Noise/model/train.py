@@ -7,8 +7,13 @@
     python3 model/train.py --hours 7-23     # daytime only (checks it isn't learning the clock)
     python3 model/train.py --cv --heli-weight 5   # helicopter windows count 5x in training
                                                   # (results_cv_heli5.txt, beside the default's)
+    python3 model/train.py --heli-weight 4 --export cnn-heli4-2026-11-03
+                                            # train, then export the CNN for the announcer
 
 Needs torch, numpy and scikit-learn (Mac venv). Writes model/data/model.pt and results.txt.
+--export NAME also writes announcer/models/NAME.onnx and NAME.json: the CNN with its channel
+scaling built in, and the threshold, feature settings and test scores. Set MODEL = "NAME" in
+announcer/aircraft_announcer/config.py and run announcer/deploy.sh to make it the announcer.
 
 The time line is cut into fixed CHUNK_MIN-minute chunks, and whole chunks go to training,
 validation or test, never single seconds: neighbouring seconds are almost the same (strong
@@ -49,9 +54,11 @@ import torch
 from sklearn.metrics import roc_auc_score
 from torch import nn
 
-from dataset import BG_MINUTES
+from dataset import BG_MINUTES, find_sibling
+from aircraft_announcer import features   # importable once dataset has found announcer/
 
 HERE = Path(__file__).resolve().parent
+EXPORT_DIR = find_sibling("announcer", "aircraft_announcer") / "models"
 DATA = HERE / "data" / "windows.npz"
 MODEL = HERE / "data" / "model.pt"
 RESULTS = HERE / "data" / "results.txt"
@@ -84,7 +91,8 @@ class AircraftCNN(nn.Module):
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(2 * width, 1))
 
     def forward(self, x):
-        dx = torch.diff(x, dim=2, prepend=x[:, :, :1])
+        # torch.diff(x, prepend=x[:, :, :1]) written out, since ONNX has no diff operator
+        dx = x - torch.cat([x[:, :, :1], x[:, :, :-1]], dim=2)
         h = self.net(torch.cat([x, dx], dim=1))
         return self.head(torch.cat([h.mean(dim=2), h.amax(dim=2)], dim=1)).squeeze(1)
 
@@ -317,6 +325,67 @@ def summarise(score, thr, d, s):
             "planes": passes_found(0), "helis": passes_found(1)}
 
 
+class Exported(nn.Module):
+    """The CNN as the announcer runs it: raw features in, aircraft probability out."""
+
+    def __init__(self, model, scale):
+        super().__init__()
+        self.model = model
+        self.register_buffer("scale", torch.from_numpy(scale.astype(np.float32)))
+
+    def forward(self, x):
+        return torch.sigmoid(self.model(x / self.scale))
+
+
+def export(name, model, scale, threshold, scores, d, tr, args):
+    """Write announcer/models/NAME.onnx and NAME.json, and check the ONNX file gives the same
+    probabilities as PyTorch."""
+    import json
+
+    EXPORT_DIR.mkdir(exist_ok=True)
+    onnx_path, meta_path = EXPORT_DIR / f"{name}.onnx", EXPORT_DIR / f"{name}.json"
+    wrapped = Exported(model, scale).eval()
+    example = torch.from_numpy(d["x"][:64].astype(np.float32))
+    torch.onnx.export(wrapped, (example,), str(onnx_path), input_names=["windows"],
+                      output_names=["probability"], dynamic_axes={"windows": {0: "n"},
+                                                                  "probability": {0: "n"}},
+                      dynamo=False)
+    try:
+        import onnxruntime
+        got = onnxruntime.InferenceSession(str(onnx_path)).run(None, {"windows": example.numpy()})[0]
+        with torch.no_grad():
+            want = wrapped(example).numpy()
+        assert np.allclose(got, want, atol=1e-5), "ONNX and PyTorch disagree"
+    except ImportError:
+        print("(onnxruntime isn't installed here, so the export wasn't checked)")
+
+    def pct(found_total):
+        found, total = found_total
+        return f"{100 * found / max(total, 1):.0f}% of {total}"
+
+    t = d["t"][tr]
+    meta = {
+        "name": name,
+        "kind": "cnn",
+        "created": time.strftime("%Y-%m-%d %H:%M"),
+        "threshold": float(threshold),
+        "features": features.settings(),
+        "trained_on": {"from": time.strftime("%Y-%m-%d", time.localtime(t.min())),
+                       "to": time.strftime("%Y-%m-%d", time.localtime(t.max())),
+                       "windows": int(tr.sum()), "heli_weight": args.heli_weight,
+                       "chunk_min": args.chunk_min, "folds": args.folds, "seed": args.seed},
+        # Scores on the test fold (chunks never seen in training or threshold tuning).
+        "scores": {"auc": round(float(scores["auc"]), 3), "recall": round(float(scores["recall"]), 3),
+                   "false alarms by day": f"{100 * scores['fa_day']:.1f}%",
+                   "false alarms at night": f"{100 * scores['fa_night']:.1f}%",
+                   "aeroplanes detected": pct(scores["planes"]),
+                   "helicopters detected": pct(scores["helis"])},
+    }
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+    print(f"Exported for the announcer -> {onnx_path} and {meta_path.name}\n"
+          f'To use it: MODEL = "{name}" in announcer/aircraft_announcer/config.py, then deploy.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--cv", action="store_true", help="each fold is the test fold once")
@@ -327,7 +396,11 @@ def main():
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--heli-weight", type=float, default=1.0,
                         help="helicopter windows' training loss counts this many times")
+    parser.add_argument("--export", metavar="NAME",
+                        help="also export the CNN for the announcer as announcer/models/NAME.*")
     args = parser.parse_args()
+    if args.export and args.cv:
+        raise SystemExit("--export goes with a plain run (one model), not --cv")
     # Results of weighted runs go to their own files, so they can be compared with the default.
     suffix = f"_heli{args.heli_weight:g}" if args.heli_weight != 1 else ""
     results = RESULTS.with_name(f"results{suffix}.txt")
@@ -363,13 +436,16 @@ def main():
     if not args.cv:
         tr, va, te, guarded = split(d, starts, 60 * args.chunk_min, fold, 0, 1, guard_s, use)
         describe_sets(d, [("train", tr), ("validation", va), ("test", te)], guarded, say)
-        model, scale, c_thr, _ = run(d, tr, va, te, args.epochs, say, args.seed, args.heli_weight)
+        model, scale, c_thr, summary = run(d, tr, va, te, args.epochs, say, args.seed,
+                                           args.heli_weight)
         torch.save({"state_dict": model.state_dict(), "scale": scale, "threshold": float(c_thr),
                     "channels": list(d["channels"]), "window_s": d["x"].shape[2],
                     "chunk_min": args.chunk_min, "seed": args.seed, "heli_weight": args.heli_weight,
                     "train_chunks": starts[np.unique(d["chunk"][tr])].tolist()}, model_path)
         results.write_text("\n".join(report_lines) + "\n")
         print(f"\nModel -> {model_path}\nResults -> {results}")
+        if args.export:
+            export(args.export, model, scale, c_thr, summary["cnn"], d, tr, args)
         return
 
     folds = []

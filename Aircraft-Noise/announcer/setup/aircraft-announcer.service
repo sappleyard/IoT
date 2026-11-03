@@ -1,0 +1,15 @@
+[Unit]
+Description=Aircraft-Noise: announce heard aircraft on the Sonos
+After=network-online.target readsb.service
+Wants=network-online.target
+
+[Service]
+User=@USER@
+WorkingDirectory=@DIR@
+ExecStart=@DIR@/.venv/bin/python -m aircraft_announcer
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

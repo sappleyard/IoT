@@ -1,7 +1,7 @@
 # Aircraft Noise
 
 Measure how loud aircraft are at home, with two microphones and the Pi's ADS-B receiver
-saying which plane was where.
+saying which plane was where, and announce each aircraft the mics hear on the Sonos.
 
 **Privacy: no audio is recorded or stored.** Each mic node boils every second of sound down
 to nine numbers (overall loudness and seven pitch bands) and throws the sound away. One-second
@@ -13,7 +13,8 @@ band levels can't reproduce speech.
                       ▼
  Mic B: bedroom ───► Bridge ESP32 ──USB──► Raspberry Pi ◄── RTL-SDR (ADS-B)
  (S window, floor 3)  (relay only)          ├─ bridge-link: mic levels    ─┐
-                                            └─ adsb-logger: aircraft       ─┴► noise.db (SQLite)
+                                            ├─ adsb-logger: aircraft       ─┴► noise.db (SQLite)
+                                            └─ announcer: model hears an aircraft ─► Sonos
 ```
 
 ## What's measured
@@ -55,8 +56,9 @@ packets; `uptime_ms` going backwards means the node restarted.
 
 ## Files
 
-Grouped by where each part runs. Only `collection/` runs on the hardware; `deploy.sh` copies
-just `collection/pi/` to the Pi, so analysis and training code never goes there.
+Grouped by where each part runs. `collection/` and `announcer/` run on the hardware, each with
+its own `deploy.sh` that copies just that folder to the Pi, so analysis and training code never
+goes there. Only an exported model (`announcer/models/`) does.
 
 ```
 collection/                 COLLECTING THE DATA (runs on the boards and the Pi)
@@ -75,13 +77,26 @@ collection/                 COLLECTING THE DATA (runs on the boards and the Pi)
       db.py                 the database schema
       adsb_logger.py        service: aircraft positions -> database
       bridge_link.py        service: mic levels -> database, health log every 10 min
+announcer/                  ANNOUNCING HEARD AIRCRAFT (runs on the Pi)
+  deploy.sh                 copy this folder to the Pi (~/aircraft-announcer) and restart it
+  setup/                    install.sh (Python environment, voice) and the systemd service
+  models/                   exported models: NAME.onnx + NAME.json (made by model/train.py --export)
+  aircraft_announcer/
+    config.py               every setting: model, quiet hours, gap, volume, matching distances
+    features.py             model input from the levels; model/dataset.py uses the same code
+    detector.py             runs the chosen model on each mic's latest 30 s
+    flights.py              which aircraft was heard; route, airline, model lookups (cached)
+    speech.py               the sentence, spoken by Piper (offline)
+    sonos.py                plays it over whatever the Sonos is playing
+    __main__.py             service: detect -> match -> look up -> announce, every second
 analysis/                   EXPLORING THE DATA (Mac)
   summary.py                report figures + summary from a copy of the Pi's database
   audibility.py             how audible aircraft are by distance/direction/time; fits the label model
   data/, figures/           database copy and outputs (git-ignored: they hold the home location)
 model/                      THE AIRCRAFT CLASSIFIER (Mac)
   dataset.py                labelled 30 s windows from the database copy
-  train.py                  trains and compares the detectors (CNN, boosting, threshold)
+  train.py                  trains and compares the detectors (CNN, boosting, threshold);
+                            --export NAME writes the CNN to announcer/models/
   data/                     windows, models, results (git-ignored)
 docs/                       design summary, training summaries
   reference/                Heathrow's runway alternation programme, departure routes map
@@ -153,8 +168,44 @@ of fixed distances. Findings so far: by day aircraft beyond ~3 km can't be told 
 noise by level; at night they stand out to ~13 km; the approach path north of the house is much
 louder than the one south of it, despite being further away.
 
+## Announcer
+
+Runs on the Pi beside the collection services and only reads their database, so collecting
+carries on unchanged. Every second it runs the model on each mic's last 30 s (the same windows
+it was trained on). When the model hears an aircraft it finds which one: the nearest aircraft
+whose sound, sent slant / 343 m/s earlier, was arriving then (within 3 km by day, 8 km at night).
+Then it says, on the Sonos, over whatever is playing:
+
+> British Airways 2 7 1, from Frankfurt-am-Main to London Heathrow, at 3,100 feet, an Airbus A three twenty.
+
+- **Route, airport and airline names** from the VRS standing data (free; one file per airline,
+  downloaded when first needed and refreshed weekly). **Aircraft model** from adsbdb (free),
+  cached for a month. Anything unknown is left out of the sentence.
+- **Each aircraft once per pass**, at least 30 s between announcements, none 20:00-09:00.
+- **Every heard aircraft is logged** in `~/aircraft-noise-data/announcer.db` (table `heard`:
+  who, when, how far, which mics, what was said, or why not), quiet hours included: the
+  history v2's "unique aircraft only" filter will use.
+- Voice: Piper (`en_GB-alan-medium`), offline on the Pi, about 1 s per sentence.
+
+**Set up** (after the collection): `announcer/deploy.sh`, then once on the Pi (needs your
+password) `ssh -t sebpi@sebpi sudo bash aircraft-announcer/setup/install.sh`.
+Logs: `ssh sebpi@sebpi journalctl -u aircraft-announcer -f` (a health line every 10 min).
+Test the speaker: `ssh sebpi@sebpi 'cd aircraft-announcer && .venv/bin/python -m aircraft_announcer --say "Hello"'`.
+Settings (volume, quiet hours, gap, distances) are in `announcer/aircraft_announcer/config.py`:
+change, then `announcer/deploy.sh`.
+
+**Using a newly trained model:**
+1. `python3 model/dataset.py` (latest data), then
+   `python3 model/train.py --heli-weight 4 --export cnn-2026-12-01` (any name). This writes
+   `announcer/models/cnn-2026-12-01.onnx` and `.json` (threshold, feature settings, test scores).
+2. Set `MODEL = "cnn-2026-12-01"` in `announcer/aircraft_announcer/config.py`.
+3. `announcer/deploy.sh`. The log's first line names the model and its scores.
+
+Any architecture works (ONNX), as long as it takes the windows from `features.py`. If those
+windows are ever changed, the old models are refused at start-up rather than run on the wrong
+input: retrain and export after changing `features.py`.
+
 ## Next steps
 
-See the design summary (`docs/`): the mic event detector (v1 rule), flight info from the free
-offline VRS route database, the Sonos announcer, the model on octave bands (v2: special
-aircraft only), then the publishing API and dashboard.
+See the design summary (`docs/`): v2 (announce only unique aircraft, scored from the `heard`
+history), then the publishing API and dashboard.

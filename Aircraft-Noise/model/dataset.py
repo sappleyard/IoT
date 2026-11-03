@@ -28,7 +28,6 @@ import argparse
 import sqlite3
 import sys
 import time
-import warnings
 from pathlib import Path
 
 import numpy as np
@@ -36,28 +35,27 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 
 
-def find_analysis():
-    """The analysis/ folder (with summary.py), wherever it sits above this one."""
+def find_sibling(folder, marker):
+    """A sibling project folder (analysis/, announcer/), wherever it sits above this one."""
     for parent in HERE.parents:
-        if (parent / "analysis" / "summary.py").exists():
-            return parent / "analysis"
-    raise SystemExit(f"Can't find analysis/summary.py in any folder above {HERE}")
+        if (parent / folder / marker).exists():
+            return parent / folder
+    raise SystemExit(f"Can't find {folder}/{marker} in any folder above {HERE}")
 
 
-sys.path.insert(0, str(find_analysis()))
+sys.path.insert(0, str(find_sibling("analysis", "summary.py")))
+sys.path.insert(0, str(find_sibling("announcer", "aircraft_announcer")))
 from summary import DB, fetch  # noqa: E402  (the same consistent copy summary.py makes)
 from audibility import (MAX_KM, HELI, load_model, load_positions, make_tracks,  # noqa: E402
                         predict)
+# The window and background code the live announcer uses too, so training matches it exactly.
+from aircraft_announcer.features import (BG_MINUTES, CHANNELS, WINDOW_S,  # noqa: E402,F401
+                                         minute_background, to_grid, windows)
 
 OUT = HERE / "data" / "windows.npz"
-BANDS_HZ = [63, 125, 250, 500, 1000, 2000, 4000]
-CHANNELS = ["laeq", "lamax"] + [f"band_{hz}" for hz in BANDS_HZ]
 SPEED_OF_SOUND = 343.0    # m/s
 
-WINDOW_S = 30      # seconds of history in each example (causal: only the past, so it runs live)
-FILL_GAP_S = 2     # lost packets up to 2 s in a row are filled with the last value
-BG_MINUTES = 3     # background = median of the 3 whole minutes before the window starts
-AUDIBLE = 0.8      # tracks at least this audible make "aircraft" examples
+AUDIBLE = 0.8     # tracks at least this audible make "aircraft" examples
 INAUDIBLE = 0.6    # "no aircraft": every aircraft at most this audible...
 MIN_NEG_KM = 3.0   # ...and none closer than 3 km (the audibility score uses the overall level only,
                    # so close in it can miss aircraft a person, or the octave bands, would notice)
@@ -89,44 +87,6 @@ def load(db):
         tracks[f"aud_{mic}"] = predict(m, tracks["slant"], tracks["north"], tracks["east"],
                                        tracks["cat"], tracks["ts"])
     return mics, tracks, coverage, pos
-
-
-def to_grid(rows):
-    """Put one mic's rows on a whole-second grid starting on a minute: (t0, values[n, 9]).
-    Missing seconds and mic-fault seconds are NaN."""
-    ts, values, flags = rows[:, 0], rows[:, 1:-1], rows[:, -1]
-    t0 = int(ts.min() // 60 * 60)
-    n = int((ts.max() - t0) // 60 + 1) * 60
-    grid = np.full((n, len(CHANNELS)), np.nan, dtype=np.float32)
-    idx = np.round(ts - t0).astype(int)
-    keep = idx < n
-    grid[idx[keep]] = values[keep]
-    # Bridge lost packets of up to FILL_GAP_S seconds with the last value, so one lost packet
-    # doesn't throw away every window containing it. Longer gaps and mic faults stay NaN.
-    received = ~np.isnan(grid[:, 0])
-    last = np.maximum.accumulate(np.where(received, np.arange(n), -1))
-    fill = ~received & (last >= 0) & (np.arange(n) - last <= FILL_GAP_S)
-    grid[fill] = grid[last[fill]]
-    grid[idx[(flags > 0) & keep]] = np.nan
-    return t0, grid
-
-
-def minute_background(grid):
-    """Background per minute m: median of each channel over minutes m-BG_MINUTES .. m-1.
-    NaN where fewer than half those seconds were received."""
-    minutes = grid.reshape(-1, 60, grid.shape[1])
-    m = len(minutes)
-    bg = np.full((m, grid.shape[1]), np.nan, dtype=np.float32)
-    if m <= BG_MINUTES:
-        return bg
-    stacked = np.concatenate([minutes[i:m - BG_MINUTES + i] for i in range(BG_MINUTES)], axis=1)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)   # all-NaN minutes
-        med = np.nanmedian(stacked, axis=1)
-    enough = (~np.isnan(stacked[:, :, 0])).sum(axis=1) >= BG_MINUTES * 30
-    med[~enough] = np.nan
-    bg[BG_MINUTES:] = med
-    return bg
 
 
 def quiet(times, near_times, coverage):
@@ -176,9 +136,7 @@ def build(mics, tracks, coverage, pos):
         ends, labels, pass_id = ends[ok], labels[ok], pass_id[ok]
 
         # Window [end - WINDOW_S + 1, end], minus the background before it starts.
-        starts = ends - WINDOW_S + 1
-        x = grid[starts[:, None] + np.arange(WINDOW_S)].transpose(0, 2, 1)   # (N, 9, W)
-        x = x - bg[starts // 60][:, :, None]
+        x = windows(grid, bg, ends)   # (N, 9, W)
         good = ~np.isnan(x).any(axis=(1, 2))
         print(f"Mic {name}: {int(labels[good].sum())} aircraft windows, "
               f"{int((labels[good] == 0).sum())} quiet windows "

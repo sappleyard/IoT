@@ -8,6 +8,7 @@ Home IoT projects. Each project lives in its own subfolder.
   (tailnet IP 100.75.211.110). Key-based SSH works from the Mac; `sudo` on the Pi needs a password,
   so root-level setup is done with scripts the user runs themselves (`ssh -t sebpi@sebpi sudo bash <script>`).
 - RTL-SDR stick (RTL2832U, USB ID 0bda:2838) with an ADS-B antenna, plugged into the Pi.
+- Sonos Era 100 ("Kitchen") on the LAN: plays audio clips over whatever is on (local API, port 1443).
 
 ## Projects
 
@@ -15,11 +16,13 @@ Home IoT projects. Each project lives in its own subfolder.
   7 octave bands; never audio) over ESP-NOW long range to a bridge ESP32 on the Pi's USB; Pi services
   log those and ADS-B positions to SQLite (`~/aircraft-noise-data/noise.db`). Folders by where they run:
   `collection/` (deployed: `esp32/`, ESP-IDF 5.5, one firmware for both nodes, mics identified by MAC;
-  `pi/`, four Python files, the only folder `deploy.sh` copies to the Pi), then Mac-only `analysis/`
-  and `model/` (classifier training: never deployed), `docs/` and the git-ignored `data-archive/`.
+  `pi/`, four Python files), `announcer/` (deployed separately: runs an exported model on the live
+  levels, names heard aircraft on the Sonos), then Mac-only `analysis/` and `model/` (classifier
+  training: never deployed; `train.py --export` writes models into `announcer/models/`), `docs/`
+  and the git-ignored `data-archive/`. `announcer/aircraft_announcer/features.py` is the one copy
+  of the model-input code, used by training and the announcer alike.
   The project README is the single source of docs. Privacy matters to the user: don't add audio
   recording, and never commit the home location (`location.json`, databases, `analysis/data/`).
-- [Sonos-Test/](Sonos-Test/): play a sound on the Sonos speaker from the Pi.
 
 ## Workflow
 

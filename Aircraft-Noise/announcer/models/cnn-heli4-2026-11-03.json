@@ -1,0 +1,39 @@
+{
+  "name": "cnn-heli4-2026-11-03",
+  "kind": "cnn",
+  "created": "2026-11-03 12:42",
+  "threshold": 0.8229363924264906,
+  "features": {
+    "channels": [
+      "laeq",
+      "lamax",
+      "band_63",
+      "band_125",
+      "band_250",
+      "band_500",
+      "band_1000",
+      "band_2000",
+      "band_4000"
+    ],
+    "window_s": 30,
+    "fill_gap_s": 2,
+    "bg_minutes": 3
+  },
+  "trained_on": {
+    "from": "2026-10-22",
+    "to": "2026-11-03",
+    "windows": 85956,
+    "heli_weight": 4.0,
+    "chunk_min": 15,
+    "folds": 7,
+    "seed": 0
+  },
+  "scores": {
+    "auc": 0.996,
+    "recall": 0.964,
+    "false alarms by day": "1.9%",
+    "false alarms at night": "0.2%",
+    "aeroplanes detected": "100% of 419",
+    "helicopters detected": "92% of 13"
+  }
+}
