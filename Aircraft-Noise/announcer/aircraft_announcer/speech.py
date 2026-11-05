@@ -26,17 +26,28 @@ def two_digits(n):
     return TENS[n // 10] + (f" {ONES[n % 10]}" if n % 10 else "")
 
 
+def digit_by_digit(digits):
+    """'109' -> 'one oh nine'."""
+    return " ".join("oh" if d == "0" else ONES[int(d)] for d in digits)
+
+
 def spoken_model(model):
-    """Aircraft model as people say it: A320 -> 'A three twenty', 787 -> 'seven eight seven'."""
+    """Aircraft model as people say it: A320 -> 'A three twenty', A300 -> 'A three hundred',
+    E190 -> 'E one ninety', 787 -> 'seven eight seven', AW139 -> 'A W one three nine'."""
     def say(m):
-        letter, digits = m.group(1), m.group(2)
-        if letter == "A" and len(digits) == 3:            # Airbus A320, A350, A380
-            return f"A {ONES[int(digits[0])]} {two_digits(int(digits[1:]))}"
-        if not letter and len(digits) == 3:               # Boeing 737, 777, 787
-            return " ".join(ONES[int(d)] for d in digits)
-        return m.group(0)
+        letters, digits = m.group(1), m.group(2)
+        if (letters, digits[0]) in (("A", "3"), ("E", "1")):    # Airbus A3xx, Embraer E1xx
+            rest = "hundred" if digits[1:] == "00" else two_digits(int(digits[1:]))
+            return f"{letters} {ONES[int(digits[0])]} {rest}"
+        return " ".join([*letters, digit_by_digit(digits)])     # Boeing, helicopters
     model = re.sub(r"(\d)([A-Za-z])", r"\1 \2", model)    # "737MAX" -> "737 MAX"
-    return re.sub(r"\b(A?)(\d{3})\b", say, model)
+    return re.sub(r"\b([A-Z]{0,3})(\d{3})\b", say, model)
+
+
+def article(words):
+    """'a' or 'an' by how the words sound: an Airbus, a Boeing, a Eurocopter, a Leonardo."""
+    first = words.lower()
+    return "a" if first.startswith(("eu", "uni", "one")) or first[0] not in "aeiou" else "an"
 
 
 def spelled(text):
@@ -47,7 +58,9 @@ def spelled(text):
 def sentence(d):
     """The announcement for a dict from flights.Lookups.details."""
     if d.get("airline") and d.get("flight_number"):
-        who = f"{d['airline']} {spelled(d['flight_number'])}"
+        # "J C Bamford (Excavators)" -> "J C Bamford"
+        airline = re.sub(r"\s*\([^)]*\)", "", d["airline"]).strip()
+        who = f"{airline} {spelled(d['flight_number'])}"
     elif d.get("callsign"):
         who = spelled(d["callsign"])
     else:
@@ -64,7 +77,7 @@ def sentence(d):
         parts.append(f"at {round(d['alt_ft'], -2):,.0f} feet")
     if d.get("model"):
         model = spoken_model(d["model"])
-        parts.append(("an " if model[0].upper() in "AEIOU" else "a ") + model)
+        parts.append(f"{article(model)} {model}")
     return ", ".join(parts) + "."
 
 

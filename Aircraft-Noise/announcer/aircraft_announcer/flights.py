@@ -161,6 +161,34 @@ def airline_name(code):
     return None
 
 
+def model_name(a):
+    """Maker and model from an adsbdb aircraft record: 'Airbus A320', 'Boeing 777', or None.
+
+    The model is rarely the type field's first word, so look for the part that has a number:
+      A320-251N -> A320           777 336ER -> 777             737MAX 8 -> 737MAX
+      A.109 E Power -> A109       AW.139 -> AW139              EMB-190 LR -> E190
+      Twin Squirrel AS.355 N -> AS355                          MBB-BK 117 D-2 (H145) -> H145
+    With no such part, the ICAO type code ('DH8D') is used instead.
+    """
+    # "Airbus SAS" -> "Airbus", "The Boeing Company" -> "Boeing", "AIRBUS" -> "Airbus"
+    words = [w for w in (a.get("manufacturer") or "").split() if w.lower() != "the"]
+    maker = re.split(r"-", words[0])[0] if words else ""
+    maker = maker.capitalize() if maker.isupper() and len(maker) > 4 else maker
+    if maker.lower() == "de" and len(words) > 1:      # "De Havilland Canada" -> "De Havilland"
+        maker = f"De {words[1]}"
+    if re.match(r"DHC-?8", a.get("type") or ""):      # "DHC-8-402" is said "Dash 8"
+        return f"{maker} Dash 8".strip()
+    kind = re.sub(r"\b([A-Za-z]{1,4})[.-](?=\d)", r"\1", a.get("type") or "")    # A.109 -> A109
+    found = (re.search(r"\b[A-Za-z]{1,4}\d{2,4}[A-Za-z]*\b", kind)
+             or re.search(r"\b\d{2,4}[A-Za-z]*\b", kind))
+    model = found.group(0) if found else (a.get("icao_type") or "").strip()
+    if not model:
+        return None
+    model = re.sub(r"^EMB(?=\d)", "E", model)
+    # Don't repeat a maker already in the name.
+    return model if not maker or model.lower().startswith(maker.lower()) else f"{maker} {model}"
+
+
 class Lookups:
     """Flight details for an announcement. Network results are cached in announcer.db."""
 
@@ -210,16 +238,7 @@ class Lookups:
     def aircraft_model(self, hex_):
         """'Airbus A320', 'Boeing 777', ... or None."""
         r = self.adsbdb(f"aircraft/{hex_}")
-        a = (r or {}).get("aircraft") or {}
-        # "Airbus SAS" -> "Airbus", "The Boeing Company" -> "Boeing"
-        words = [w for w in (a.get("manufacturer") or "").split() if w.lower() != "the"]
-        maker = words[0].capitalize() if words else ""
-        # "A320-251N" -> "A320", "777 336ER" -> "777"
-        model = re.split(r"[\s-]", (a.get("type") or a.get("icao_type") or "").strip())[0]
-        if not model:
-            return None
-        # "Airbus" + "A320", but don't repeat a maker already in the type name.
-        return model if not maker or model.lower().startswith(maker.lower()) else f"{maker} {model}"
+        return model_name((r or {}).get("aircraft") or {})
 
     def details(self, heard):
         """Everything to announce about a matched aircraft (a dict from Tracker.match)."""
