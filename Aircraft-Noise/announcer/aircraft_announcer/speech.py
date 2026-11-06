@@ -36,7 +36,7 @@ def spoken_model(model):
     E190 -> 'E one ninety', 787 -> 'seven eight seven', AW139 -> 'A W one three nine'."""
     def say(m):
         letters, digits = m.group(1), m.group(2)
-        if (letters, digits[0]) in (("A", "3"), ("E", "1")):    # Airbus A3xx, Embraer E1xx
+        if (letters, digits[0]) in (("A", "2"), ("A", "3"), ("E", "1")):    # Airbus, Embraer
             rest = "hundred" if digits[1:] == "00" else two_digits(int(digits[1:]))
             return f"{letters} {ONES[int(digits[0])]} {rest}"
         return " ".join([*letters, digit_by_digit(digits)])     # Boeing, helicopters

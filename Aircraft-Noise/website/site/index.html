@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flight Passes</title>
+  <meta name="description" content="Every aircraft that has passed close to one house, logged from its own ADS-B receiver.">
+  <link rel="preload" href="fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="nav__name" href="./">Flight Passes</a>
+    <nav class="nav__links" aria-label="Main">
+      <a class="nav__link" href="./" aria-current="page">Passes</a>
+      <a class="nav__link" href="outlook.html">Outlook</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="head">
+      <h1 class="head__title">What flew over the house.</h1>
+      <p class="head__lede" id="lede">Loading the log…</p>
+    </section>
+
+    <dl class="stats" id="stats" aria-live="polite"></dl>
+
+    <section class="section" aria-labelledby="by-day">
+      <h2 class="section__title" id="by-day">Passes per day</h2>
+      <p class="section__note">Choose a day to see its flights.</p>
+      <div class="scroll">
+        <table class="days">
+          <thead>
+            <tr><th scope="col">Day</th><th scope="col" class="num">Passes</th><th scope="col" class="num">Helicopters</th><th scope="col"><span class="sr">Share</span></th></tr>
+          </thead>
+          <tbody id="days"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="most-seen">
+      <h2 class="section__title" id="most-seen">Most seen</h2>
+      <div class="columns" style="margin-top:2rem">
+        <div><h3>Airlines</h3><div class="scroll"><table><tbody id="top-airlines"></tbody></table></div></div>
+        <div><h3>Aircraft</h3><div class="scroll"><table><tbody id="top-aircraft"></tbody></table></div></div>
+        <div><h3>Routes</h3><div class="scroll"><table><tbody id="top-routes"></tbody></table></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="flights-title" id="flights">
+      <h2 class="section__title" id="flights-title">Every flight</h2>
+      <p class="section__note">One row per pass. Times are to the hour: 14:00 means some time between 14:00 and 15:00. Routes are looked up from the callsign, so they show the flight's usual route.</p>
+      <div class="filters">
+        <label class="field">Search
+          <input id="search" type="search" placeholder="Callsign, airline, airport, aircraft" autocomplete="off">
+        </label>
+        <label class="field">Day
+          <select id="day"><option value="">All days</option></select>
+        </label>
+        <label class="field">Type
+          <select id="kind"><option value="">All types</option></select>
+        </label>
+        <p class="count" id="count" aria-live="polite"></p>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead id="flight-head"></thead>
+          <tbody id="flight-rows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button class="btn" id="prev" type="button">Newer</button>
+        <span class="pager__at" id="at"></span>
+        <button class="btn" id="next" type="button">Older</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <h2 class="foot__title">About this log</h2>
+    <p>A small receiver at the house picks up the position broadcasts aircraft send. A pass is one aircraft coming within 5 km, measured in a straight line that includes its height. Airline, route and aircraft details come from <a href="https://github.com/vradarserver/standing-data">VRS standing data</a> and <a href="https://www.adsbdb.com/">adsbdb</a>.</p>
+    <p id="updated"></p>
+  </footer>
+
+  <script src="passes.js"></script>
+</body>
+</html>

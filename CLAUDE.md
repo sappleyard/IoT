@@ -17,7 +17,10 @@ Home IoT projects. Each project lives in its own subfolder.
   log those and ADS-B positions to SQLite (`~/aircraft-noise-data/noise.db`). Folders by where they run:
   `collection/` (deployed: `esp32/`, ESP-IDF 5.5, one firmware for both nodes, mics identified by MAC;
   `pi/`, four Python files), `announcer/` (deployed separately: runs an exported model on the live
-  levels, names heard aircraft on the Sonos), then Mac-only `analysis/` and `model/` (classifier
+  levels, names heard aircraft on the Sonos), `website/` (public site at
+  sappleyard.github.io/flight-passes, data from `website/export.py` on the Pi: publishes only date,
+  hour, callsign, airline, route, aircraft, type; never distances, altitudes or exact times),
+  then Mac-only `analysis/` and `model/` (classifier
   training: never deployed; `train.py --export` writes models into `announcer/models/`), `docs/`
   and the git-ignored `data-archive/`. `announcer/aircraft_announcer/features.py` is the one copy
   of the model-input code, used by training and the announcer alike.
@@ -26,7 +29,7 @@ Home IoT projects. Each project lives in its own subfolder.
 
 ## Workflow
 
-- The repo is pushed to GitHub (private: github.com/sappleyard/IoT). A PostToolUse hook
+- The repo is pushed to GitHub (public: github.com/sappleyard/IoT). A PostToolUse hook
   (`.claude/hooks/autocommit.sh`) commits and pushes each file Claude edits. Changes made
   any other way still need committing and pushing by hand.
 - Python code uses the standard library only unless a dependency is clearly worth it.

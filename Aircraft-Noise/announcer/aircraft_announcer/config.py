@@ -9,7 +9,7 @@ HERE = Path(__file__).resolve().parent
 # A file pair in announcer/models/: NAME.onnx and NAME.json, written by
 #   model/train.py --export NAME
 # To use a newly trained model: export it, change this line, run announcer/deploy.sh.
-MODEL = "cnn-heli4-2026-11-03"
+MODEL = "cnn-heli4-2026-11-05"
 MODELS_DIR = HERE.parent / "models"
 
 # --- Announcements ---------------------------------------------------------------------------

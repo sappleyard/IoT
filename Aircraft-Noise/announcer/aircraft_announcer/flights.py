@@ -176,8 +176,12 @@ def model_name(a):
     maker = maker.capitalize() if maker.isupper() and len(maker) > 4 else maker
     if maker.lower() == "de" and len(words) > 1:      # "De Havilland Canada" -> "De Havilland"
         maker = f"De {words[1]}"
+    if maker == "Avions":                             # "Avions de Transport Regional" -> "ATR"
+        maker = "ATR"
     if re.match(r"DHC-?8", a.get("type") or ""):      # "DHC-8-402" is said "Dash 8"
         return f"{maker} Dash 8".strip()
+    if a.get("icao_type") in ("BCS1", "BCS3"):        # "C Series 300", "BD-500-1A11" are now A220s
+        return "Airbus A220"
     kind = re.sub(r"\b([A-Za-z]{1,4})[.-](?=\d)", r"\1", a.get("type") or "")    # A.109 -> A109
     found = (re.search(r"\b[A-Za-z]{1,4}\d{2,4}[A-Za-z]*\b", kind)
              or re.search(r"\b\d{2,4}[A-Za-z]*\b", kind))

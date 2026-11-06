@@ -89,6 +89,11 @@ announcer/                  ANNOUNCING HEARD AIRCRAFT (runs on the Pi)
     speech.py               the sentence, spoken by Piper (offline)
     sonos.py                plays it over whatever the Sonos is playing
     __main__.py             service: detect -> match -> look up -> announce, every second
+website/                    THE PUBLIC SITE (built on the Pi, served by GitHub Pages)
+  deploy.sh                 copy this folder to the Pi (~/aircraft-website)
+  export.py                 passes -> site/data/passes.json: the only data that leaves the house
+  publish.sh                daily on the Pi: export, then push to github.com/sappleyard/flight-passes
+  site/                     the static pages (Passes, Outlook), styled after axolokl.co.uk
 analysis/                   EXPLORING THE DATA (Mac)
   summary.py                report figures + summary from a copy of the Pi's database
   audibility.py             how audible aircraft are by distance/direction/time; fits the label model
@@ -207,6 +212,34 @@ change, then `announcer/deploy.sh`.
 Any architecture works (ONNX), as long as it takes the windows from `features.py`. If those
 windows are ever changed, the old models are refused at start-up rather than run on the wrong
 input: retrain and export after changing `features.py`.
+
+## Website
+
+https://sappleyard.github.io/flight-passes/ is a public table of every pass (one row per
+aircraft within 5 km, with a summary per day), plus an Outlook page that is ready for a 10-day
+forecast. It's a static site: `website/site/` holds the pages, and `website/export.py` writes
+the data they show.
+
+**What's published** is limited on purpose. Flight tracks are public, so anything that ties a
+flight to a precise time or distance could help someone find the house. `export.py` writes only
+the date, the **hour**, callsign, airline, route, aircraft and type. It never writes distance,
+altitude, speed, heading, position or exact times. It publishes complete days only, and within
+an hour sorts rows by callsign, not by time. Routes and aircraft come from the announcer's
+cached lookups (`flights.py`).
+
+**Publishing** runs on the Pi: `website/deploy.sh` copies the code; `publish.sh` rebuilds
+`passes.json` into `~/aircraft-website/pages` (a clone of the site repo) and pushes it. It
+needs a write key for that repo only, and a daily cron job:
+
+    ssh sebpi@sebpi 'ssh-keygen -t ed25519 -N "" -f ~/.ssh/aircraft_pages -C "sebpi flight-passes"'
+    ssh sebpi@sebpi cat .ssh/aircraft_pages.pub | gh repo deploy-key add - --repo sappleyard/flight-passes --allow-write --title sebpi
+    ssh sebpi@sebpi 'GIT_SSH_COMMAND="ssh -i ~/.ssh/aircraft_pages" git clone git@github.com:sappleyard/flight-passes.git aircraft-website/pages && git -C aircraft-website/pages config user.name sappleyard && git -C aircraft-website/pages config user.email sappleyard@users.noreply.github.com'
+    ssh sebpi@sebpi '(crontab -l 2>/dev/null; echo "30 1 * * * \$HOME/aircraft-website/publish.sh >> \$HOME/aircraft-website/publish.log 2>&1") | crontab -'
+
+**Outlook data:** the page fills itself from `data/outlook.json`, shaped like this:
+`{"generated": "2026-11-06", "days": [{"date": "2026-11-06", "passes": 420, "low": 300,
+"high": 560, "wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Any missing day or field
+shows a dash. Until a forecast job writes this file, `site/data/outlook.json` has no days.
 
 ## Next steps
 
