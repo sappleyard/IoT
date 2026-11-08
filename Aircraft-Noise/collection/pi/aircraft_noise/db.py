@@ -64,7 +64,19 @@ CREATE TABLE IF NOT EXISTS levels (
 );
 CREATE INDEX IF NOT EXISTS levels_mic_ts ON levels (mic, ts);
 
--- Small facts, e.g. the receiver location.
+-- One row per day's file uploaded to the archive (archive.py), checked on R2 after upload.
+CREATE TABLE IF NOT EXISTS archived (
+    day         TEXT NOT NULL,   -- UTC date, e.g. 2026-11-07: the file is TBL/DAY.csv.gz
+    tbl         TEXT NOT NULL,
+    rows        INTEGER NOT NULL,
+    bytes       INTEGER NOT NULL,
+    md5         TEXT NOT NULL,   -- of the .csv.gz (its ETag on R2)
+    uploaded_ts REAL NOT NULL,
+    pruned_ts   REAL,            -- when that day's rows were deleted here (big tables only)
+    PRIMARY KEY (day, tbl)
+);
+
+-- Small facts, e.g. the receiver location. Never archived: it holds the home location.
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT

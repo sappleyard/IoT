@@ -43,6 +43,14 @@ PASS_END_S = 60            # ...written once it's been outside that range this l
 GROUND_MAX_ALT_FT = 100
 GROUND_MAX_SPEED_KT = 30
 
+# --- Archive (archive.py): finished days go to Cloudflare R2, the Pi keeps recent ones -------
+# {"account_id": .., "bucket": .., "access_key_id": .., "secret_access_key": ..}, kept outside the
+# code folder and git. The bucket is this project's alone (aircraft-noise-archive): the Pi's token
+# can read and write that one bucket, the Mac's can only read it.
+ARCHIVE_CONFIG = Path.home() / ".config" / "aircraft-noise" / "r2.json"
+KEEP_DAYS = 30             # days of levels and positions kept on the Pi; older ones only on R2
+ARCHIVE_AFTER_S = 3600     # a UTC day is finished this long after midnight (passes end late)
+
 # --- Bridge link --------------------------------------------------------------------------
 SERIAL_BAUD = 115200
 SUMMARY_EVERY_S = 600      # log a health line per mic this often

@@ -3,6 +3,8 @@
 # Home location and the ESP-NOW encryption keys
 location.json
 secrets.h
+# Archive (R2) keys: they live in ~/.config/aircraft-noise/, this is only a safety net
+r2.json
 # Databases and anything copied or derived from them (they hold the home location)
 *.db
 *.db-wal

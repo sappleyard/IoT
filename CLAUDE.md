@@ -16,7 +16,10 @@ Home IoT projects. Each project lives in its own subfolder.
   7 octave bands; never audio) over ESP-NOW long range to a bridge ESP32 on the Pi's USB; Pi services
   log those and ADS-B positions to SQLite (`~/aircraft-noise-data/noise.db`). Folders by where they run:
   `collection/` (deployed: `esp32/`, ESP-IDF 5.5, one firmware for both nodes, mics identified by MAC;
-  `pi/`, four Python files), `announcer/` (deployed separately: runs an exported model on the live
+  `pi/`, Python services plus `archive.py`: nightly, finished UTC days go to the private R2 bucket
+  `aircraft-noise-archive` as gzipped CSVs and the Pi keeps 30 days; `analysis/summary.py`'s
+  fetch merges pruned days back; keep this bucket and its keys separate from any other
+  project's Cloudflare resources), `announcer/` (deployed separately: runs an exported model on the live
   levels, names heard aircraft on the Sonos), `website/` (public site at
   sappleyard.github.io/flight-passes, data from `website/export.py` on the Pi: publishes only date,
   hour, callsign, airline, route, aircraft, type; never distances, altitudes or exact times),

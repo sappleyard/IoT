@@ -43,6 +43,7 @@ accepts the two nodes listed in `protocol.h`.
 | `aircraft_positions` | aircraft position: `ts, hex, callsign, lat, lon, alt_baro_ft, alt_geom_ft, speed_kt, track_deg, dist_km` |
 | `passes` | aircraft within 5 km: `hex, callsign, first_ts, last_ts, closest_ts, closest_slant_km, closest_dist_km, closest_alt_ft, speed_kt, track_deg` |
 | `logger_coverage` | period the ADS-B logger was running with fresh data (outside them, "no aircraft" means nothing) |
+| `archived` | day's file in the archive: `day, tbl, rows, bytes, md5, uploaded_ts, pruned_ts` (see [Archive](#archive)) |
 | `meta` | fact, e.g. the receiver location |
 
 ```sql
@@ -53,6 +54,67 @@ WHERE mic = 'B' AND ts > strftime('%s', 'now') - 3600;
 
 `flags = 1` means the mic sent no signal (dead or disconnected). Gaps in `seq` are lost
 packets; `uptime_ms` going backwards means the node restarted.
+
+## Archive
+
+The database grows about 67 MB a day (positions 55%, levels 28%, indexes the rest), and an SD
+card is a single copy that can fail. So the Pi keeps only the last **30 days** of levels and
+positions, and every finished day is stored in a private **Cloudflare R2** bucket,
+`aircraft-noise-archive`, that belongs to this project only:
+
+    levels/2026-11-07.csv.gz   aircraft_positions/2026-11-07.csv.gz
+    passes/2026-11-07.csv.gz   logger_coverage/2026-11-07.csv.gz
+
+One gzipped CSV per table per UTC day, written once and never changed: about 13 MB a day for two
+mics (4.7 GB a year; R2's free tier is 10 GB, then $0.015/GB a month). `collection/pi/
+aircraft_noise/archive.py` runs nightly at 01:15 by cron on the Pi:
+
+1. **Upload** every finished day not in the `archived` table yet, then read each file's size and
+   MD5 back from R2; only a match is recorded.
+2. **Prune**: for days over 30 days old, check the levels and positions files on R2 again, then
+   delete those rows from the Pi an hour at a time, so the services never wait long.
+   `passes` and `logger_coverage` are under 1 MB and stay. SQLite reuses the freed space, so
+   `noise.db` levels off at about 2 GB instead of growing.
+
+If an upload fails nothing is deleted, and the next night carries on where it stopped. The
+log's last line each night gives the archive's size and the Pi's free space:
+`ssh sebpi@sebpi tail aircraft-noise-data/archive.log`. `--dry-run` says what it would do.
+
+**Scaling:** the Pi's storage stays at 30 days however long it runs; each extra mic node adds
+about 2.3 MB a day to the archive; and day files can be fetched by date range without loading the
+rest. **On the Mac**, `summary.py`'s copy of the database (also used by `audibility.py` and
+`model/dataset.py`) puts the pruned days back from R2, downloading each file once into
+`analysis/data/archive/`, so analysis and training still see every day. **If the Pi is lost**,
+`python3 -m aircraft_noise.archive --restore OUT.db` (run from `collection/pi/`) rebuilds a
+database from the archive alone, at most one day behind.
+
+**Privacy:** the archive holds aircraft positions and distances near the house, so the bucket is
+private and its keys stay off git. `meta` (the home location) is never uploaded; `--restore` fills
+it back in from `location.json`.
+
+**Kept apart from everything else:** the bucket is this project's alone. Its tokens are
+limited to that one bucket, so they can't reach anything else in the Cloudflare account, and
+no other project's code or keys touch it. The keys live in an aircraft-noise-only file, and
+nothing here uses Wrangler or Workers.
+
+**Setting up** (once):
+
+1. Cloudflare dashboard → R2 → Create bucket `aircraft-noise-archive` (location: automatic).
+2. R2 → Manage API tokens → Create API token, twice, both "Apply to specific buckets only" →
+   `aircraft-noise-archive`:
+   `aircraft-noise sebpi` with **Object Read & Write** (for the Pi), and
+   `aircraft-noise mac` with **Object Read** only (for the Mac's analysis copy).
+3. Put each token's keys on its machine, readable by you only:
+
+       ssh sebpi@sebpi 'mkdir -p ~/.config/aircraft-noise && umask 077 && cat > ~/.config/aircraft-noise/r2.json'
+       mkdir -p ~/.config/aircraft-noise && (umask 077; cat > ~/.config/aircraft-noise/r2.json)
+
+   then paste `{"account_id": "…", "bucket": "aircraft-noise-archive", "access_key_id": "…",
+   "secret_access_key": "…"}` and press Ctrl-D.
+4. Deploy (`collection/pi/deploy.sh`), upload what's there so far, then add the cron job:
+
+       ssh sebpi@sebpi 'cd aircraft-noise && python3 -m aircraft_noise.archive'
+       ssh sebpi@sebpi '(crontab -l 2>/dev/null; echo "15 1 * * * cd \$HOME/aircraft-noise && nice -n 19 python3 -m aircraft_noise.archive >> \$HOME/aircraft-noise-data/archive.log 2>&1") | crontab -'
 
 ## Files
 
@@ -77,6 +139,7 @@ collection/                 COLLECTING THE DATA (runs on the boards and the Pi)
       db.py                 the database schema
       adsb_logger.py        service: aircraft positions -> database
       bridge_link.py        service: mic levels -> database, health log every 10 min
+      archive.py            nightly: finished days -> Cloudflare R2, deletes old ones from the Pi
 announcer/                  ANNOUNCING HEARD AIRCRAFT (runs on the Pi)
   deploy.sh                 copy this folder to the Pi (~/aircraft-announcer) and restart it
   setup/                    install.sh (Python environment, voice) and the systemd service

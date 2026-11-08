@@ -23,6 +23,7 @@ happened to be louder get heard, which would flatten the curve and hide the air 
 import argparse
 import sqlite3
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -34,6 +35,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 DB = HERE / "data" / "noise.db"
+ARCHIVE_CACHE = HERE / "data" / "archive"   # days downloaded from R2 (they never change)
 FIGURES = HERE / "figures"
 HOST = "sebpi@sebpi"
 BANDS_HZ = [63, 125, 250, 500, 1000, 2000, 4000]
@@ -54,6 +56,12 @@ def fetch():
     subprocess.run(["ssh", HOST, "python3", "-"], input=script.encode(), check=True)
     subprocess.run(["scp", "-q", f"{HOST}:/tmp/noise-copy.db", str(DB)], check=True)
     subprocess.run(["ssh", HOST, "rm", "-f", "/tmp/noise-copy.db"], check=True)
+    # The Pi keeps only recent levels and positions: add the older days back from the archive.
+    sys.path.insert(0, str(HERE.parent / "collection" / "pi"))
+    from aircraft_noise.archive import merge
+    db = sqlite3.connect(DB)
+    merge(db, ARCHIVE_CACHE)
+    db.close()
 
 
 def energy_mean(levels):
