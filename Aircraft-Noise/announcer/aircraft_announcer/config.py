@@ -73,7 +73,7 @@ STALE_LEVELS_S = 10        # mic levels older than this: the mics or bridge are 
 # file per airline / airport prefix, fetched when first needed and refreshed weekly).
 VRS_URL = "https://raw.githubusercontent.com/vradarserver/standing-data/main"
 VRS_REFRESH_S = 7 * 86400
-# Aircraft model by ICAO address, and routes VRS doesn't have: adsbdb (free), cached.
+# Aircraft model by ICAO address: adsbdb (free), cached.
 ADSBDB_URL = "https://api.adsbdb.com/v0"
 ADSBDB_REFRESH_S = 30 * 86400
 HTTP_TIMEOUT_S = 5

@@ -5,11 +5,9 @@ When the mics hear an aircraft, match() picks the one whose sound was arriving t
 from an aircraft at slant distance r reaches the house r / 343 m/s later, the same alignment the
 training labels use. The nearest such aircraft wins (nearest = loudest).
 
-Lookups, all cached in announcer.db or CACHE_DIR, and each optional (a failed lookup just
-leaves that part out of the announcement):
-  route, airport and airline names  VRS standing data, by callsign (one file per airline)
-  route, if VRS doesn't know it     adsbdb, by callsign
-  aircraft model                    adsbdb, by ICAO address
+Two lookups, one per source, each cached and optional (a failed one just leaves that part out):
+  the flight: airline, route, airports   VRS standing data, by callsign (files cached a week)
+  the aircraft: its model                adsbdb, by ICAO address (cached a month)
 """
 
 import csv
@@ -242,19 +240,14 @@ class Lookups:
         return value
 
     def route(self, callsign):
-        """(origin, destination) as spoken airport names, or (None, None)."""
+        """(origin, destination) as spoken airport names from the VRS route for the callsign,
+        or (None, None)."""
         m = re.fullmatch(r"([A-Z]{3})(\d\w*)", callsign or "")
         if m:
             for row in vrs_csv(f"routes/schema-01/{callsign[0]}/{m.group(1)}-all.csv"):
                 if row["Callsign"] == callsign:
                     stops = row["AirportCodes"].split("-")
                     return spoken_airport(stops[0]), spoken_airport(stops[-1])
-        r = self.adsbdb(f"callsign/{callsign}") if callsign else None
-        if r and "flightroute" in r:
-            ends = [r["flightroute"].get(k) or {} for k in ("origin", "destination")]
-            names = [spoken_airport(e["icao_code"]) if e.get("icao_code") else None for e in ends]
-            return tuple(n or re.sub(r"\s+(International\s+)?Airport$", "", e.get("name", "")) or None
-                         for n, e in zip(names, ends))
         return None, None
 
     def aircraft_model(self, hex_):
