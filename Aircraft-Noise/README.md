@@ -96,7 +96,7 @@ it back in from `location.json`.
 **Kept apart from everything else:** the bucket is this project's alone. Its tokens are
 limited to that one bucket, so they can't reach anything else in the Cloudflare account, and
 no other project's code or keys touch it. The keys live in an aircraft-noise-only file, and
-nothing here uses Wrangler or Workers.
+nothing here uses Wrangler or Workers. The archive talks to R2 through boto3.
 
 **Setting up** (once):
 
@@ -112,7 +112,9 @@ nothing here uses Wrangler or Workers.
 
    then paste `{"account_id": "…", "bucket": "aircraft-noise-archive", "access_key_id": "…",
    "secret_access_key": "…"}` and press Ctrl-D.
-4. Deploy (`collection/pi/deploy.sh`), upload what's there so far, then add the cron job:
+4. Install boto3 on the Pi (`ssh -t sebpi@sebpi sudo apt install -y python3-boto3`) and in the
+   Mac's `.venv` (`pip install boto3`), deploy (`collection/pi/deploy.sh`), upload what's there
+   so far, then add the cron job:
 
        ssh sebpi@sebpi 'cd aircraft-noise && python3 -m aircraft_noise.archive'
        ssh sebpi@sebpi '(crontab -l 2>/dev/null; echo "15 1 * * * cd \$HOME/aircraft-noise && nice -n 19 python3 -m aircraft_noise.archive >> \$HOME/aircraft-noise-data/archive.log 2>&1") | crontab -'
@@ -152,7 +154,7 @@ announcer/                  ANNOUNCING HEARD AIRCRAFT (runs on the Pi)
     flights.py              which aircraft was heard; route, airline, model lookups (cached)
     uniqueness.py           how unusual a heard aircraft is (decides what gets announced)
     speech.py               the sentence, spoken by Piper (offline)
-    sonos.py                plays it over whatever the Sonos is playing
+    sonos.py                plays it on the Sonos (SoCo), then puts back what was playing
     __main__.py             service: detect -> match -> look up -> announce, every second
 website/                    THE PUBLIC SITE (built on the Pi, served by GitHub Pages)
   deploy.sh                 copy this folder to the Pi (~/aircraft-website)
@@ -238,7 +240,8 @@ Runs on the Pi beside the collection services and only reads their database, so 
 carries on unchanged. Every second it runs the model on each mic's last 30 s (the same windows
 it was trained on). When the model hears an aircraft it finds which one: the nearest aircraft
 whose sound, sent slant / 343 m/s earlier, was arriving then (within 3 km by day, 8 km at night).
-If that aircraft is unusual (below), it says, on the Sonos, over whatever is playing:
+If that aircraft is unusual (below), it says on the Sonos (pausing whatever was playing, then
+putting it back; Spotify Connect and AirPlay stay stopped, as only the phone can restart them):
 
 > First time heard: Air Astana 6 6 3, from Almaty to London Heathrow, at 3,400 feet, an Airbus A three twenty one.
 

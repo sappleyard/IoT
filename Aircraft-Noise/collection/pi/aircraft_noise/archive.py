@@ -10,8 +10,8 @@ A day's levels and aircraft positions (99% of the space) are deleted from the Pi
 KEEP_DAYS old, and only after their files are checked on R2 again in that same run; passes and
 logger_coverage are small and stay. `meta` holds the home location and is never uploaded.
 
-The bucket and its keys are in ARCHIVE_CONFIG (see the README). Standard library only: R2 speaks
-the S3 API, signed here with AWS Signature Version 4.
+The bucket and its keys are in ARCHIVE_CONFIG (see the README). R2 speaks the S3 API, used
+through boto3 (on the Pi: apt install python3-boto3).
 """
 
 import argparse
@@ -21,7 +21,6 @@ import csv
 import datetime as dt
 import gzip
 import hashlib
-import hmac
 import io
 import json
 import logging
@@ -32,7 +31,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from .config import (ARCHIVE_AFTER_S, ARCHIVE_CONFIG, DATA_DIR, KEEP_DAYS, home_location)
@@ -52,89 +50,49 @@ DAY_S = 86400
 
 # --- R2 (S3 API) ------------------------------------------------------------------------------
 
-def sign(method, host, path, query, headers, payload_sha256, when, key_id, secret,
-         region="auto"):
-    """The Authorization header for an S3 request (AWS Signature Version 4)."""
-    amz_date, date = when.strftime("%Y%m%dT%H%M%SZ"), when.strftime("%Y%m%d")
-    scope = f"{date}/{region}/s3/aws4_request"
-    headers = {k.lower(): str(v).strip() for k, v in {**headers, "host": host}.items()}
-    names = sorted(headers)
-    canonical = "\n".join([method, urllib.parse.quote(path), query,
-                           *(f"{k}:{headers[k]}" for k in names), "", ";".join(names),
-                           payload_sha256])
-    to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope,
-                         hashlib.sha256(canonical.encode()).hexdigest()])
-    key = ("AWS4" + secret).encode()
-    for part in (date, region, "s3", "aws4_request"):
-        key = hmac.new(key, part.encode(), hashlib.sha256).digest()
-    signature = hmac.new(key, to_sign.encode(), hashlib.sha256).hexdigest()
-    return (f"AWS4-HMAC-SHA256 Credential={key_id}/{scope}, "
-            f"SignedHeaders={';'.join(names)}, Signature={signature}")
-
-
 class R2:
-    """The few bucket operations the archive needs: put, head, get and list."""
+    """The few bucket operations the archive needs: put, head, get and list (boto3, S3 API)."""
 
     def __init__(self, config_path=ARCHIVE_CONFIG):
+        import boto3   # here, so a dry run (and the collection services) don't need it
         try:
             cfg = json.loads(Path(config_path).read_text())
-            self.host = f"{cfg['account_id']}.r2.cloudflarestorage.com"
             self.bucket = cfg["bucket"]
-            self.key_id, self.secret = cfg["access_key_id"], cfg["secret_access_key"]
+            self.s3 = boto3.client(
+                "s3", endpoint_url=f"https://{cfg['account_id']}.r2.cloudflarestorage.com",
+                aws_access_key_id=cfg["access_key_id"],
+                aws_secret_access_key=cfg["secret_access_key"], region_name="auto")
         except (OSError, ValueError, KeyError) as e:
             raise SystemExit(f'Need {config_path} like {{"account_id": .., "bucket": .., '
                              f'"access_key_id": .., "secret_access_key": ..}} (see README): {e}')
 
-    def request(self, method, key="", params=None, body=b"", headers=None):
-        """(status, headers, body). Raises urllib.error.HTTPError for errors other than 404."""
-        path = f"/{self.bucket}/{key}" if key else f"/{self.bucket}"
-        query = urllib.parse.urlencode(sorted((params or {}).items()),
-                                       quote_via=urllib.parse.quote)
-        now = dt.datetime.now(dt.timezone.utc)
-        payload = hashlib.sha256(body).hexdigest()
-        headers = {**(headers or {}), "x-amz-date": now.strftime("%Y%m%dT%H%M%SZ"),
-                   "x-amz-content-sha256": payload}
-        headers["Authorization"] = sign(method, self.host, path, query, headers, payload, now,
-                                        self.key_id, self.secret)
-        url = f"https://{self.host}{urllib.parse.quote(path)}" + (f"?{query}" if query else "")
-        req = urllib.request.Request(url, data=body or None, method=method, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                return resp.status, resp.headers, resp.read()
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return 404, e.headers, b""
-            raise
-
     def put(self, key, body):
         md5 = base64.b64encode(hashlib.md5(body).digest()).decode()
-        self.request("PUT", key, body=body,
-                     headers={"Content-Type": "application/gzip", "Content-MD5": md5})
+        self.s3.put_object(Bucket=self.bucket, Key=key, Body=body,
+                           ContentType="application/gzip", ContentMD5=md5)
 
     def head(self, key):
         """(size, md5) of the stored file, or None if it isn't there."""
-        status, headers, _ = self.request("HEAD", key)
-        if status == 404:
-            return None
-        return int(headers["Content-Length"]), headers["ETag"].strip('"')
+        from botocore.exceptions import ClientError
+        try:
+            r = self.s3.head_object(Bucket=self.bucket, Key=key)
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+                return None
+            raise
+        return r["ContentLength"], r["ETag"].strip('"')
 
     def get(self, key):
-        status, _, body = self.request("GET", key)
-        if status == 404:
+        try:
+            return self.s3.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+        except self.s3.exceptions.NoSuchKey:
             raise SystemExit(f"{key} is missing from the archive")
-        return body
 
     def keys(self, prefix=""):
         """Every key in the bucket starting with prefix."""
-        ns = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
-        params = {"list-type": "2", "prefix": prefix}
-        while True:
-            root = ET.fromstring(self.request("GET", params=params)[2])
-            yield from (k.text for k in root.iterfind("s3:Contents/s3:Key", ns))
-            token = root.find("s3:NextContinuationToken", ns)
-            if token is None:
-                return
-            params["continuation-token"] = token.text
+        pages = self.s3.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix)
+        for page in pages:
+            yield from (obj["Key"] for obj in page.get("Contents", []))
 
     def verified(self, key, size, md5):
         return self.head(key) == (size, md5)

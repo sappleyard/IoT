@@ -2,3 +2,4 @@
 numpy
 onnxruntime    # runs the exported model, whatever its architecture
 piper-tts      # offline text to speech
+soco           # plays the clips on the Sonos
