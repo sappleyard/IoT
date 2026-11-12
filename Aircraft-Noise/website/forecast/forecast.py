@@ -41,7 +41,7 @@ SPREAD_KT = 4.0                 # ensemble members disagreeing by more than this
                                 # daytime tailwind, knots) means the weather itself is unsure
 REASONS = {"west": "Westerly wind, arrivals overhead",
            "east": "Easterly wind, arrivals elsewhere",
-           "switch": "Wind turning during the day",
+           "switch": "Wind direction change mid day",
            "edge": "Wind near the turning point, could go either way",
            "far": "Far ahead, forecast uncertain"}
 SEED = 1                        # same inputs, same numbers: reruns don't jitter the site
