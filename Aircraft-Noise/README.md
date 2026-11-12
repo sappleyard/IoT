@@ -264,7 +264,8 @@ If that aircraft is unusual (below), it says, on the Sonos, over whatever is pla
   "The first Boeing seven four seven in two weeks:" or "A rare visitor:". Nothing is
   unique until 500 aircraft have been heard. The airframe and night were tried and dropped:
   a new airframe is the norm, and night isn't rare (nor announced). Settings
-  (`UNIQUE_TOP_PERCENT`, 100 = announce everything, as v1 did) are in `config.py`.
+  (`UNIQUE_TOP_PERCENT`, 100 = announce everything, as v1 did) are in `config.py`. Models in
+  `ALWAYS_UNIQUE` are always announced with their own lead-in: every A380 is "G.O.A.T."
 - **Each aircraft once per pass**, at least 30 s between announcements, none 20:00-09:00.
 - **Every heard aircraft is logged** in `~/aircraft-noise-data/announcer.db` (table `heard`:
   who, when, how far, which mics, its ADS-B category, its uniqueness score, percentile and
@@ -309,7 +310,7 @@ an hour sorts rows by callsign, not by time. Routes and aircraft come from the a
 cached lookups (`flights.py`). The page is about **heard** flights: each pass is marked heard
 if the announcer's `heard` log has that aircraft during it (unknown before the log starts, 3 Nov
 2026), and counts, top lists and the flight table use heard flights (a "Heard only" switch shows
-every pass). **Highlights**: up to 8 heard flights per day, the ones the announcer's uniqueness
+every pass). **Highlights**: up to 8 heard flights per day, then every A380 ("G.O.A.T."), the ones the announcer's uniqueness
 score rates most unusual (announced, or at least the 90th percentile), with the same fields plus
 the reason ("First time heard", "The first Boeing 747 in two weeks"); arrows step through days.
 

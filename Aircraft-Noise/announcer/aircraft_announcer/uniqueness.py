@@ -49,7 +49,7 @@ import sqlite3
 import time
 from collections import deque
 
-from .config import (HOME_AIRPORT, NOISE_DB, UNIQUE_HALF_LIFE_DAYS, UNIQUE_MIN_HISTORY,
+from .config import (ALWAYS_UNIQUE, HOME_AIRPORT, NOISE_DB, UNIQUE_HALF_LIFE_DAYS, UNIQUE_MIN_HISTORY,
                      UNIQUE_PAIR_WEIGHT, UNIQUE_RESCORE_S, UNIQUE_SURPRISAL_SHARE,
                      UNIQUE_TOP_PERCENT, UNIQUE_WINDOW_DAYS)
 from .speech import spoken_model
@@ -199,7 +199,8 @@ class Uniqueness:
 
     def score(self, d, ts=None):
         """Add a heard flight to the history and say how unusual it is: a dict with uniqueness
-        (bits), percentile (0-100 among recent heard flights), unique (announce it?), reason
+        (bits), percentile (0-100 among recent heard flights), unique (announce it?), always
+        (a model in ALWAYS_UNIQUE, unique however common), reason
         (for the log), lead_in (said before the sentence, or None) and phrase (those words
         whether or not it is unique)."""
         ts = time.time() if ts is None else ts
@@ -227,8 +228,12 @@ class Uniqueness:
             reason = (f"{why} {f[why]} ({before} before"
                       + (f", last {(ts - last) / 86400:.0f} days ago)" if last else ")"))
         phrase = lead_in(why, d, seen[why], ts) if why else None
+        model = f.get("model", "")
+        special = next((words for key, words in ALWAYS_UNIQUE.items() if key in model), None)
+        if special:
+            unique, phrase, reason = True, special, f"always: {model}"
         return {"uniqueness": round(score, 2), "percentile": round(percentile, 1),
-                "unique": unique, "reason": reason,
+                "unique": unique, "always": bool(special), "reason": reason,
                 "lead_in": phrase if unique else None,
                 "phrase": phrase}     # the same words for any flight (the site's highlights)
 

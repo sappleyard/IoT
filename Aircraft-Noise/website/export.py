@@ -31,7 +31,7 @@ from aircraft_announcer.config import ANNOUNCER_DB, NOISE_DB         # noqa: E40
 
 TIME_STEP_S = 3600       # published times are to the hour
 LOOKUP_PAUSE_S = 0.5     # between network requests: adsbdb is a free service
-HIGHLIGHTS = 8           # at most this many flights
+HIGHLIGHTS = 8           # at most this many rare flights (and every ALWAYS_UNIQUE one after)
 HIGHLIGHT_PERCENTILE = 90    # beyond the announced few, flights at least this unusual
 HEARD_BEFORE_S = 60     # a heard row counts for a pass from this long before it starts...
 HEARD_AFTER_S = 120     # ...to this long after it ends (the sound arrives slant / 343 s late)
@@ -102,16 +102,18 @@ def highlights(before):
         if score["unique"] or (history.flights > UNIQUE_MIN_HISTORY
                                and score["percentile"] >= HIGHLIGHT_PERCENTILE):
             seen.add(callsign)
-            picked.append((score["unique"], score["percentile"], [
+            picked.append((score["always"], score["unique"], score["percentile"], [
                 when.strftime("%H:%M"), callsign, row["airline"] or "", row["origin"] or "",
                 row["destination"] or "", row["aircraft_model"] or "",
                 score["phrase"].rstrip(":")]))
     out = []
     for day, (picked, _) in sorted(days.items()):
-        picked.sort(key=lambda p: (p[0], p[1]), reverse=True)
+        picked.sort(key=lambda p: p[:3], reverse=True)
+        always = [p[3] for p in picked if p[0]]
+        rare = [p[3] for p in picked if not p[0]][:HIGHLIGHTS]
         # nothing is unusual while the history warms up (UNIQUE_MIN_HISTORY): start after
         if picked or out:
-            out.append({"date": day, "flights": [p[2] for p in picked[:HIGHLIGHTS]]})
+            out.append({"date": day, "flights": rare + always})
     return out
 
 
