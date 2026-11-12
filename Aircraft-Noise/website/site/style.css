@@ -183,6 +183,11 @@ th[aria-sort="descending"] button::after { content: " ↓"; color: var(--gill); 
 .bar-cell { width: 45%; min-width: 7rem; }
 .bar { display: block; height: 0.7rem; min-width: 1px; background: var(--graphite); border-radius: 999px; }
 .tag.tag--why { margin-left: 0; }
+.stepper { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
+.stepper__day { font-weight: 700; min-width: 13rem; text-align: center; }
+.btn.btn--arrow { padding-inline: 0.9em; font-size: 1.1em; line-height: 1; }
+.tag.tag--quiet { color: var(--steel); background: var(--alu); }
+.check { display: flex; align-items: center; gap: 0.4rem; padding-bottom: 0.6em; font-size: var(--step--1); font-weight: 600; white-space: nowrap; }
 .tag {
   display: inline-block;
   margin-left: 0.4rem;

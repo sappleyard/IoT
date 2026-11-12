@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flight Passes</title>
-  <meta name="description" content="Every aircraft that has passed close to one house, logged from its own ADS-B receiver.">
+  <meta name="description" content="Every aircraft one house has heard, logged from its own microphones and ADS-B receiver.">
   <link rel="preload" href="fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,14 +12,14 @@
   <header class="nav">
     <a class="nav__name" href="./">Flight Passes</a>
     <nav class="nav__links" aria-label="Main">
-      <a class="nav__link" href="./" aria-current="page">Passes</a>
+      <a class="nav__link" href="./" aria-current="page">Heard</a>
       <a class="nav__link" href="outlook.html">Outlook</a>
     </nav>
   </header>
 
   <main>
     <section class="head">
-      <h1 class="head__title">What flew over the house.</h1>
+      <h1 class="head__title">What the house heard.</h1>
       <p class="head__lede" id="lede">Loading the log…</p>
     </section>
 
@@ -27,7 +27,12 @@
 
     <section class="section" aria-labelledby="highlights-title" id="highlights" hidden>
       <h2 class="section__title" id="highlights-title">Highlights</h2>
-      <p class="section__note" id="highlights-note"></p>
+      <p class="section__note">The most unusual flights the microphones heard each day, judged against every flight heard before them. Most unusual first.</p>
+      <div class="stepper">
+        <button class="btn btn--arrow" id="highlights-older" type="button" aria-label="Previous day">←</button>
+        <span class="stepper__day" id="highlights-day" aria-live="polite"></span>
+        <button class="btn btn--arrow" id="highlights-newer" type="button" aria-label="Next day">→</button>
+      </div>
       <div class="scroll">
         <table class="highlights">
           <thead>
@@ -39,12 +44,12 @@
     </section>
 
     <section class="section" aria-labelledby="by-day">
-      <h2 class="section__title" id="by-day">Passes per day</h2>
-      <p class="section__note">Choose a day to see its flights.</p>
+      <h2 class="section__title" id="by-day">Heard per day</h2>
+      <p class="section__note">Heard flights, out of all passes within 5 km. Choose a day to see its flights.</p>
       <div class="scroll">
         <table class="days">
           <thead>
-            <tr><th scope="col">Day</th><th scope="col" class="num">Passes</th><th scope="col" class="num">Helicopters</th><th scope="col"><span class="sr">Share</span></th></tr>
+            <tr><th scope="col">Day</th><th scope="col" class="num">Heard</th><th scope="col" class="num">Passes</th><th scope="col" class="num">Helicopters heard</th><th scope="col"><span class="sr">Share</span></th></tr>
           </thead>
           <tbody id="days"></tbody>
         </table>
@@ -52,7 +57,7 @@
     </section>
 
     <section class="section" aria-labelledby="most-seen">
-      <h2 class="section__title" id="most-seen">Most seen</h2>
+      <h2 class="section__title" id="most-seen">Most heard</h2>
       <div class="columns" style="margin-top:2rem">
         <div><h3>Airlines</h3><div class="scroll"><table><tbody id="top-airlines"></tbody></table></div></div>
         <div><h3>Aircraft</h3><div class="scroll"><table><tbody id="top-aircraft"></tbody></table></div></div>
@@ -61,8 +66,8 @@
     </section>
 
     <section class="section" aria-labelledby="flights-title" id="flights">
-      <h2 class="section__title" id="flights-title">Every flight</h2>
-      <p class="section__note">One row per pass. Times are to the hour: 14:00 means some time between 14:00 and 15:00. Routes are looked up from the callsign, so they show the flight's usual route.</p>
+      <h2 class="section__title" id="flights-title">Every heard flight</h2>
+      <p class="section__note">One row per heard flight; turn off "Heard only" to see every pass within 5 km, heard or not. Times are to the hour: 14:00 means some time between 14:00 and 15:00. Routes are looked up from the callsign, so they show the flight's usual route.</p>
       <div class="filters">
         <label class="field">Search
           <input id="search" type="search" placeholder="Callsign, airline, airport, aircraft" autocomplete="off">
@@ -73,6 +78,7 @@
         <label class="field">Type
           <select id="kind"><option value="">All types</option></select>
         </label>
+        <label class="check"><input id="heard-only" type="checkbox" checked> Heard only</label>
         <p class="count" id="count" aria-live="polite"></p>
       </div>
       <div class="scroll">
@@ -91,7 +97,7 @@
 
   <footer class="foot">
     <h2 class="foot__title">About this log</h2>
-    <p>A small receiver at the house picks up the position broadcasts aircraft send. A pass is one aircraft coming within 5 km, measured in a straight line that includes its height. Airline, route and aircraft details come from <a href="https://github.com/vradarserver/standing-data">VRS standing data</a> and <a href="https://www.adsbdb.com/">adsbdb</a>.</p>
+    <p>Two microphones at the house measure sound levels (never recording audio), and a small receiver picks up the position broadcasts aircraft send. A flight is heard when a model trained on those levels hears an aircraft and the broadcasts show which one it was. A pass is one aircraft coming within 5 km, measured in a straight line that includes its height, heard or not. The microphones started listening on 3 November. Airline, route and aircraft details come from <a href="https://github.com/vradarserver/standing-data">VRS standing data</a> and <a href="https://www.adsbdb.com/">adsbdb</a>.</p>
     <p id="updated"></p>
   </footer>
 

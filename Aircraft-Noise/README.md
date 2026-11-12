@@ -306,10 +306,12 @@ flight to a precise time or distance could help someone find the house. `export.
 the date, the **hour**, callsign, airline, route, aircraft and type. It never writes distance,
 altitude, speed, heading, position or exact times. It publishes complete days only, and within
 an hour sorts rows by callsign, not by time. Routes and aircraft come from the announcer's
-cached lookups (`flights.py`). **Highlights** (top of the Passes page): up to 8 of the last
-complete day's heard flights, the ones the announcer's uniqueness score rates most unusual
-(announced, or at least the 90th percentile), with the same fields plus the reason ("First time
-heard", "The first Boeing 747 in two weeks").
+cached lookups (`flights.py`). The page is about **heard** flights: each pass is marked heard
+if the announcer's `heard` log has that aircraft during it (unknown before the log starts, 3 Nov
+2026), and counts, top lists and the flight table use heard flights (a "Heard only" switch shows
+every pass). **Highlights**: up to 8 heard flights per day, the ones the announcer's uniqueness
+score rates most unusual (announced, or at least the 90th percentile), with the same fields plus
+the reason ("First time heard", "The first Boeing 747 in two weeks"); arrows step through days.
 
 **Publishing** runs on the Pi: `website/deploy.sh` copies the code; `publish.sh` rebuilds
 `passes.json` into `~/aircraft-website/pages` (a clone of the site repo) and pushes it. It
