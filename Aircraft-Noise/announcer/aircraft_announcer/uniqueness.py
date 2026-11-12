@@ -1,60 +1,36 @@
-"""How unusual a heard aircraft is, so that only the rare ones are announced (v2).
+"""How unusual a heard aircraft is: the score behind v2 (only unusual aircraft are announced).
 
-Each heard flight is described by a few features: airline, aircraft model, the far end of its
-route (whichever end isn't London Heathrow) and its ADS-B category (heavy, helicopter, light...).
-Every feature is scored against the `heard` history only, recency-weighted (a flight seen 60
-days ago counts half as much as one seen today, so a type that stops coming becomes rare again).
-
-Why not just surprisal, -log2 P(value)? Routes, airlines and models are long-tailed: hundreds
-of places are each heard once or twice, so "a flight to a once-a-week place" happens dozens of
-times a day, and surprisal alone would rank every one of those above a rare aircraft model
-(even Dublin, 1 flight in 40, is 5.3 bits). So each feature's bits are measured against what
-is usual for that feature, mixing two views (UNIQUE_SURPRISAL_SHARE of the second):
+Each heard flight is described by its airline, aircraft model, the far end of its route (the
+end that isn't Heathrow) and, only when the model is unknown, its ADS-B category. Each feature
+is scored against the `heard` history, recency-weighted (a flight 60 days ago counts half):
 
     share(v)  = sum over values u of min(weight(u), weight(v)) / total weight
     excess(v) = -log2 (weight(v) / total weight) - entropy of the feature, if > 0
     bits(v)   = 0.3 * -log2 share(v)  +  0.7 * excess(v)
 
-share is like a p-value ("only 2% of flights have a model this rare"), on the same scale
-whichever feature it comes from; min() rather than a hard "at most as common" cut, so values
-heard equally often aren't ranked by how recently. excess is how much more surprising the
-value is than this feature's values usually are (the entropy is the average surprisal), and
-keeps "never heard before" above "heard a few times". Either way a first-time place, common
-among places, scores less than a first-time airline, and that less than a new aircraft model.
-
-The flight itself is counted before it's scored (a value never heard before is a singleton),
-and the percentile ranks it among the recent flights scored the same way, now, as if each had
-just been heard. So scores from the first days (when everything is new) and from today are
-one calculation and can be compared; the first days don't announce everything.
-
-The flight's score is its rarest feature's bits, plus half of what the airline + model pair
-adds over the rarer of the two (an airline heard often, flying a model heard often, but never
-together), so features aren't counted twice. Its percentile among the flights heard in the
-last UNIQUE_WINDOW_DAYS decides: the top UNIQUE_TOP_PERCENT are announced, with a short
-lead-in from the feature that made it rare ("First time heard:", "The first Boeing seven four
-seven in two weeks:", "A rare visitor:").
-
-Dropped on purpose: the airframe (almost every airframe is new, so a new one is the norm, not a
-surprise), night (announcements are never made at night, and night isn't rare) and the ADS-B
-category when the model is known (the model says more: otherwise a daily Loganair Embraer would
-be "a rare small aircraft" every day for ever).
-No Markov chains: the order flights arrive in means nothing.
+share is like a p-value ("only 2% of flights have a model this rare"); excess is how much more
+surprising the value is than that feature's values usually are, so features with many values
+(places) don't win just by having many. The flight's score is its rarest feature's bits, plus
+half of what the airline + model pair adds. It's ranked among the last 14 days' heard flights
+(rescored as if heard now, every 10 min); the top UNIQUE_TOP_PERCENT are unique, with a lead-in
+from the feature that made it rare: "First time heard:", "The first Boeing seven four seven in
+two weeks:" or "A rare visitor:".
 """
 
 import bisect
-import logging
 import math
 import re
-import sqlite3
 import time
 from collections import deque
 
-from .config import (ALWAYS_UNIQUE, HOME_AIRPORT, NOISE_DB, UNIQUE_HALF_LIFE_DAYS, UNIQUE_MIN_HISTORY,
-                     UNIQUE_PAIR_WEIGHT, UNIQUE_RESCORE_S, UNIQUE_SURPRISAL_SHARE,
-                     UNIQUE_TOP_PERCENT, UNIQUE_WINDOW_DAYS)
+from .config import ALWAYS_UNIQUE, HOME_AIRPORT, UNIQUE_MIN_HISTORY, UNIQUE_TOP_PERCENT
 from .speech import spoken_model
 
-log = logging.getLogger("announcer")
+WINDOW_DAYS = 14         # the recent heard flights the percentile is taken among
+HALF_LIFE_DAYS = 60      # a flight heard this long ago counts half as much as one today
+PAIR_WEIGHT = 0.5        # share of a rare airline + model pair's extra rarity that counts
+SURPRISAL_SHARE = 0.7    # bits = 0.3 share + 0.7 excess (see above)
+RESCORE_S = 600          # how often the recent flights are re-ranked
 
 # ADS-B emitter categories, merged where the difference isn't one people hear
 CATEGORIES = {"A1": "light aircraft", "A2": "small aircraft", "A3": "airliner", "A4": "airliner",
@@ -65,13 +41,6 @@ PAIR = "airline+model"
 # The pair is the reason only when it adds at least this much over its rarer half
 PAIR_REASON_BITS = 1.0
 EPOCH = 1.7e9            # weights grow from here instead of decaying (see Counts)
-
-# New columns in `heard`, added to existing databases by migrate()
-COLUMNS = (("category", "TEXT"),        # ADS-B emitter category, e.g. A5 (heavy)
-           ("uniqueness", "REAL"),      # the score in bits (higher = rarer)
-           ("percentile", "REAL"),      # among recent heard flights, 0-100
-           ("reason", "TEXT"))          # what made it rare, e.g. 'model Boeing 747 (2 before)'
-
 
 def features(d):
     """The scored features of a flight: a dict from flights.Lookups.details or a `heard` row.
@@ -147,17 +116,17 @@ class Counts:
         # surprisal beyond the feature's average, so features with many values (places)
         # don't win just by having many values
         surprise = -math.log2(w / total) - entropy
-        return (1 - UNIQUE_SURPRISAL_SHARE) * rare + UNIQUE_SURPRISAL_SHARE * max(0.0, surprise)
+        return (1 - SURPRISAL_SHARE) * rare + SURPRISAL_SHARE * max(0.0, surprise)
 
 
 class Uniqueness:
     """The heard history's counts, and the recent flights the percentile is taken among."""
 
     def __init__(self, rows=()):
-        half_life = UNIQUE_HALF_LIFE_DAYS * 86400
+        half_life = HALF_LIFE_DAYS * 86400
         self.counts = {k: Counts(half_life) for k in (*FEATURES, PAIR)}
         self.flights = 0
-        self.recent = deque()          # (ts, features) of the last UNIQUE_WINDOW_DAYS
+        self.recent = deque()          # (ts, features) of the last WINDOW_DAYS
         self.recent_scores = []        # their scores, sorted, against the counts at rescored
         self.rescored = 0.0
         for row in rows:
@@ -174,7 +143,7 @@ class Uniqueness:
         seen = {k: self.counts[k].add(v, ts) for k, v in f.items()}
         self.flights += 1
         self.recent.append((ts, f))
-        while self.recent and self.recent[0][0] < ts - UNIQUE_WINDOW_DAYS * 86400:
+        while self.recent and self.recent[0][0] < ts - WINDOW_DAYS * 86400:
             self.recent.popleft()
         return seen
 
@@ -191,7 +160,7 @@ class Uniqueness:
             pair = self.counts[PAIR].bits(f[PAIR], bump)
             extra = pair - max(bits["airline"], bits["model"])
             if extra > 0:
-                score += UNIQUE_PAIR_WEIGHT * extra
+                score += PAIR_WEIGHT * extra
             if pair >= bits[reason] + PAIR_REASON_BITS:
                 reason = PAIR
             bits[PAIR] = pair
@@ -200,14 +169,13 @@ class Uniqueness:
     def score(self, d, ts=None):
         """Add a heard flight to the history and say how unusual it is: a dict with uniqueness
         (bits), percentile (0-100 among recent heard flights), unique (announce it?), always
-        (a model in ALWAYS_UNIQUE, unique however common), reason
-        (for the log), lead_in (said before the sentence, or None) and phrase (those words
-        whether or not it is unique)."""
+        (a model in ALWAYS_UNIQUE, unique however common), reason (for the log) and lead_in
+        (the words v2 says before the sentence; also the site's highlight label)."""
         ts = time.time() if ts is None else ts
         f = features(d)
         seen = self.add(ts, f)
         score, why, bits = self.raw_score(f)
-        if ts - self.rescored >= UNIQUE_RESCORE_S:
+        if ts - self.rescored >= RESCORE_S:
             # Scores of earlier flights shift as the history grows, so rank against what
             # they'd score if heard now (the same counts, and their own flight as new as this
             # one), not what they scored then.
@@ -234,8 +202,7 @@ class Uniqueness:
             unique, phrase, reason = True, special, f"always: {model}"
         return {"uniqueness": round(score, 2), "percentile": round(percentile, 1),
                 "unique": unique, "always": bool(special), "reason": reason,
-                "lead_in": phrase if unique else None,
-                "phrase": phrase}     # the same words for any flight (the site's highlights)
+                "lead_in": phrase}
 
 
 NUMBERS = "zero one two three four five six seven eight nine ten eleven twelve".split()
@@ -260,56 +227,3 @@ def lead_in(why, d, seen, ts):
                      f"{d.get('destination') if d.get('origin') == HOME_AIRPORT else d.get('origin')}",
             PAIR: f"{d.get('airline')} {spoken_model(model) if model else ''}".strip()}.get(why)
     return f"The first {what} in {gap}:" if what else "A rare visitor:"
-
-
-# --- Bringing an existing `heard` table up to date --------------------------------------------
-
-def migrate(db, lookups):
-    """Add the v2 columns to `heard` (safe to run on every start). The first time, also fill in
-    the old rows so the history isn't split in two: the ADS-B category from the collection's
-    passes, and airline, route and model re-derived from the callsign and address with the
-    cached lookups (airport names changed style on 2026-11-12: 'Amsterdam Airport Schiphol'
-    is now 'Amsterdam'). What was said (`text`) is left as it was."""
-    have = {row[1] for row in db.execute("PRAGMA table_info(heard)")}
-    missing = [(name, kind) for name, kind in COLUMNS if name not in have]
-    for name, kind in missing:
-        db.execute(f"ALTER TABLE heard ADD COLUMN {name} {kind}")
-    db.commit()
-    if "category" not in dict(missing):
-        return
-    started = time.time()
-    rows = db.execute("SELECT rowid, ts, hex, callsign, airline, origin, destination, "
-                      "aircraft_model FROM heard").fetchall()
-    log.info("bringing %d heard rows up to date for the uniqueness score", len(rows))
-    try:
-        noise = sqlite3.connect(f"file:{NOISE_DB}?mode=ro", uri=True, timeout=30)
-        passes = {}
-        for hex_, first, last, category in noise.execute(
-                "SELECT lower(hex), first_ts, last_ts, category FROM passes "
-                "WHERE category IS NOT NULL"):
-            passes.setdefault(hex_, []).append((first, last, category))
-        noise.close()
-    except sqlite3.Error as e:
-        log.warning("no categories for old heard rows (%s): %s", NOISE_DB, e)
-        passes = {}
-    routes, models = {}, {}
-    for rowid, ts, hex_, callsign, airline, origin, destination, model in rows:
-        category = next((c for first, last, c in passes.get(hex_.lower(), ())
-                         if first - 300 <= ts <= last + 300), None)
-        try:
-            if callsign not in routes:
-                d = lookups.details({"hex": hex_, "callsign": callsign})
-                routes[callsign] = (d["airline"], d["origin"], d["destination"])
-                models.setdefault(hex_, d["model"])
-            if hex_ not in models:
-                models[hex_] = lookups.aircraft_model(hex_)
-            new = (*routes[callsign], models[hex_])
-        except Exception:     # a failed lookup keeps what the row had
-            log.exception("re-deriving %s %s", hex_, callsign)
-            new = (None,) * 4
-        old = (airline, origin, destination, model)
-        db.execute("UPDATE heard SET category = ?, airline = ?, origin = ?, destination = ?, "
-                   "aircraft_model = ? WHERE rowid = ?",
-                   (category, *(n or o for n, o in zip(new, old)), rowid))
-    db.commit()
-    log.info("heard rows up to date in %.0f s", time.time() - started)

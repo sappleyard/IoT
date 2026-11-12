@@ -245,25 +245,28 @@ If that aircraft is unusual (below), it says, on the Sonos, over whatever is pla
 - **Route, airport and airline names** from the VRS standing data (free; one file per airline,
   downloaded when first needed and refreshed weekly). **Aircraft model** from adsbdb (free),
   cached for a month. Anything unknown is left out of the sentence.
-- **Only unique aircraft (v2)**, scored against the history of heard aircraft
-  (`uniqueness.py`). Each feature (airline, aircraft model, the end of the route that isn't
-  Heathrow, and the ADS-B category when the model is unknown) gets a rarity in bits: how much
-  more surprising its value is than that feature's values usually are, mixed with the share
-  of heard flights whose value is as rare. Counts are recency-weighted (60-day half-life), so
-  a model that stops coming becomes rare again. A flight's score is its rarest feature, plus a
-  little for a rare airline + model pair; it's ranked among the last 14 days' heard flights,
-  and only the **top 3%** are announced (about 5-10 a busy day so far; more as the
-  history grows past its first weeks). The reason picks a lead-in: "First time heard:",
-  "The first Boeing seven four seven in two weeks:" or "A rare visitor:". Nothing is
-  unique until 500 aircraft have been heard. The airframe and night were tried and dropped:
-  a new airframe is the norm, and night isn't rare (nor announced). Settings
-  (`UNIQUE_TOP_PERCENT`, 100 = announce everything, as v1 did) are in `config.py`. Models in
-  `ALWAYS_UNIQUE` are always announced with their own lead-in: every A380 and 747 is "G.O.A.T."
+- **v1 or v2: what gets said.** Every heard aircraft is scored either way (`uniqueness.py`);
+  the version only decides what's spoken:
+
+  | | Says | Example |
+  |---|---|---|
+  | v1 | every heard aircraft | "British Airways 2 7 1, from Frankfurt to London Heathrow, at 3,100 feet, an Airbus A three twenty." |
+  | v2 | only the top 3% by uniqueness, plus every A380 and 747, with a lead-in | "First time heard: ...", "The first Boeing seven four seven in two weeks: ...", "A rare visitor: ...", "G.O.A.T. ..." |
+
+  v2 is the default (`VERSION` in `config.py`). To switch, no restart needed:
+  `ssh sebpi@sebpi 'echo 1 > aircraft-noise-data/ANNOUNCER_VERSION'` (or `echo 2`; delete the
+  file to go back to the default). The log marks each line `v1` or `v2`.
+- **The uniqueness score (v2).** Each feature (airline, aircraft model, the end of the route that
+  isn't Heathrow, and the ADS-B category when the model is unknown) gets a rarity in bits
+  against the history of heard aircraft, recency-weighted (60-day half-life). A flight's score
+  is its rarest feature, plus a little for a rare airline + model pair, ranked among the last
+  14 days' heard flights. Nothing is unique until 500 aircraft have been heard. Settings
+  (`UNIQUE_TOP_PERCENT`, `ALWAYS_UNIQUE`) are in `config.py`.
 - **Each aircraft once per pass**, at least 30 s between announcements, none 20:00-09:00.
 - **Every heard aircraft is logged** in `~/aircraft-noise-data/announcer.db` (table `heard`:
   who, when, how far, which mics, its ADS-B category, its uniqueness score, percentile and
-  reason, what was said, or why not: `not unique`, `quiet hours`, `paused`...), quiet hours
-  included: the history the score is taken from. Which were rare:
+  reason, what was said, or why not: `not unique` (v2), `quiet hours`, `paused`...): the
+  history the score is taken from. Which were rare:
   `ssh sebpi@sebpi "sqlite3 aircraft-noise-data/announcer.db \"SELECT datetime(ts,'unixepoch'), percentile, reason, text FROM heard WHERE percentile >= 97\""`
 - Voice: Piper (`en_GB-alan-medium`), offline on the Pi, about 1 s per sentence.
 
@@ -351,6 +354,6 @@ coordinates, never the house's.
 ## Status
 
 The setup is final for the coursework (due 10 Dec 2026): collection, the archive, the announcer
-(v2, unique aircraft only), the site and the forecast all run unattended on the Pi. Speaking is
+(v1/v2 switchable, v2 by default), the site and the forecast all run unattended on the Pi. Speaking is
 paused while `ANNOUNCER_PAUSED` exists; heard aircraft are logged either way. What's left is the
 report and video.

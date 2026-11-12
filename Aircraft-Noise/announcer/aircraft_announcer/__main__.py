@@ -4,15 +4,12 @@ do, find which aircraft it is and say so on the Sonos.
     python -m aircraft_announcer              # run (as the aircraft-announcer service does)
     python -m aircraft_announcer --dry-run    # everything except speaking: logs what it would say
     python -m aircraft_announcer --say "Hello"   # speak one sentence now (tests voice + speaker)
-    python -m aircraft_announcer --dry-run --model NAME   # try another exported model live
 
-Only unique aircraft are announced (v2): each heard aircraft is scored for how rare it is in
-the history of heard aircraft (uniqueness.py), and only the top few per cent are said.
-Each heard aircraft gets one row in announcer.db's `heard` table, announced or not (not unique,
-quiet hours, paused, speaker failure), with its score and what was (or would have been) said:
-that table is the history the score is taken from. While ~/aircraft-noise-data/ANNOUNCER_PAUSED exists nothing is spoken, but heard
-aircraft are still logged:  touch it to pause,  rm it to resume.
-The collection database is only read, so collecting carries on exactly as before.
+v1 announces every heard aircraft, v2 only unusual ones (see config.py; switched with the
+ANNOUNCER_VERSION file, no restart). Each heard aircraft gets one row in announcer.db's `heard`
+table, announced or not, with its uniqueness score and what was (or would have been) said: the
+history the score is taken from. While ~/aircraft-noise-data/ANNOUNCER_PAUSED exists nothing is
+spoken. The collection database is only read.
 """
 
 import argparse
@@ -30,7 +27,7 @@ from .detector import Detector, latest_windows, open_levels
 from .flights import Lookups, Tracker
 from .sonos import ClipServer, Speaker
 from .speech import Voice, sentence
-from .uniqueness import Uniqueness, migrate
+from .uniqueness import Uniqueness
 
 log = logging.getLogger("announcer")
 
@@ -49,9 +46,8 @@ CREATE TABLE IF NOT EXISTS heard (
     destination    TEXT,
     aircraft_model TEXT,
     text           TEXT,            -- the announcement (said, or would have been)
-    status         TEXT NOT NULL,   -- announced / not unique / quiet hours / paused / dry run /
-                                    -- speaker failed
-    -- added in v2 (uniqueness.migrate adds them to older databases):
+    status         TEXT NOT NULL,   -- announced / not unique (v2) / quiet hours / paused /
+                                    -- dry run / speaker failed
     category       TEXT,            -- ADS-B emitter category, e.g. A5 (heavy), A7 (helicopter)
     uniqueness     REAL,            -- how rare, in bits (uniqueness.py)
     percentile     REAL,            -- of that, among the recent heard flights (0-100)
@@ -59,6 +55,14 @@ CREATE TABLE IF NOT EXISTS heard (
 );
 CREATE INDEX IF NOT EXISTS heard_ts ON heard (ts);
 """
+
+
+def version():
+    """1 (every heard aircraft) or 2 (only unusual ones): the ANNOUNCER_VERSION file, else config."""
+    try:
+        return int(C.VERSION_FILE.read_text().strip())
+    except (OSError, ValueError):
+        return C.VERSION
 
 
 def quiet_hours(t):
@@ -92,12 +96,9 @@ class Announcer(threading.Thread):
         db = sqlite3.connect(C.ANNOUNCER_DB, timeout=30)
         db.executescript(SCHEMA)
         lookups = Lookups(db)
-        migrate(db, lookups)
         uniqueness = Uniqueness.from_db(db)
-        log.info("uniqueness: %d heard aircraft in the history; announcing the top %g%%%s",
-                 uniqueness.flights, C.UNIQUE_TOP_PERCENT,
-                 f" once {C.UNIQUE_MIN_HISTORY} have been heard"
-                 if uniqueness.flights < C.UNIQUE_MIN_HISTORY else "")
+        log.info("v%d; uniqueness history: %d heard aircraft (v2 announces the top %g%%)",
+                 version(), uniqueness.flights, C.UNIQUE_TOP_PERCENT)
         while True:
             heard, silent = self.jobs.get()    # silent: why not to speak, or None
             self.working = True
@@ -106,9 +107,10 @@ class Announcer(threading.Thread):
                 d = lookups.details(heard)
                 text = sentence(d)
                 score = uniqueness.score(d, heard["ts"])
-                status = ("not unique" if not score["unique"]
+                v2 = version() == 2
+                status = ("not unique" if v2 and not score["unique"]
                           else silent or ("dry run" if self.dry_run else None))
-                if score["lead_in"]:
+                if v2 and score["unique"]:
                     text = f"{score['lead_in']} {text}"
                 if status is None:
                     started = time.time()
@@ -119,8 +121,8 @@ class Announcer(threading.Thread):
                     for old in sorted(self.clips_dir.glob("*.wav"))[:-10]:
                         old.unlink()
                     self.next_free = max(self.next_free, time.time())
-                log.info("%s (%.1f bits, %.0f%%, %s): %s", status, score["uniqueness"],
-                         score["percentile"], score["reason"], text)
+                log.info("v%d %s (%.1f bits, %.0f%%, %s): %s", 2 if v2 else 1, status,
+                         score["uniqueness"], score["percentile"], score["reason"], text)
             except Exception:   # one bad lookup or clip mustn't stop the announcer
                 log.exception("announcing %s failed", heard)
                 d, text, status = heard, None, "failed"
@@ -214,14 +216,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dry-run", action="store_true", help="don't speak, just log")
     parser.add_argument("--say", metavar="TEXT", help="speak TEXT on the Sonos now and exit")
-    parser.add_argument("--model", default=C.MODEL,
-                        help=f"exported model in models/ (default, from config.py: {C.MODEL})")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     if args.say:
         say(args.say)
     else:
-        run(args.dry_run, args.model)
+        run(args.dry_run, C.MODEL)
 
 
 if __name__ == "__main__":

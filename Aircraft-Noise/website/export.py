@@ -118,7 +118,7 @@ def highlights(before):
         when = datetime.fromtimestamp(row["ts"] - row["ts"] % TIME_STEP_S)
         picked, seen = days.setdefault(when.strftime("%Y-%m-%d"), ([], set()))
         # a flight heard twice (both mics, or two windows) is one highlight
-        if not score["phrase"] or callsign in seen:
+        if not score["lead_in"] or callsign in seen:
             continue
         if score["unique"] or (history.flights > UNIQUE_MIN_HISTORY
                                and score["percentile"] >= HIGHLIGHT_PERCENTILE):
@@ -126,7 +126,7 @@ def highlights(before):
             picked.append((score["always"], score["unique"], score["percentile"], [
                 when.strftime("%H:%M"), callsign, row["airline"] or "", row["origin"] or "",
                 row["destination"] or "", row["aircraft_model"] or "",
-                label(score["phrase"])]))
+                label(score["lead_in"])]))
     out = []
     for day, (picked, _) in sorted(days.items()):
         picked.sort(key=lambda p: p[:3], reverse=True)

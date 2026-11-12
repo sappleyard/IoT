@@ -21,22 +21,19 @@ SPEAKER = None             # Sonos IP, or None to find one on the network (SSDP)
 HTTP_PORT = 8765           # the Sonos fetches each spoken clip from this port on the Pi
 VOICE = "en_GB-alan-medium"   # Piper voice, downloaded by setup/install.sh
 
-# --- Only unique aircraft (v2: see uniqueness.py) ----------------------------------------------
-# Each heard flight is scored for how rare its airline, model, route and ADS-B category are in
-# the heard history, then ranked among the recent heard flights: only the top few per cent are
-# announced (3% is about 10-20 on a busy day). 100 announces every heard aircraft, as v1 did.
+# --- What is said: v1 or v2 --------------------------------------------------------------------
+# v1  every heard aircraft:
+#       "British Airways 2 7 1, from Frankfurt to London Heathrow, at 3,100 feet, an Airbus A three twenty."
+# v2  only unusual ones (the top UNIQUE_TOP_PERCENT by uniqueness.py's score), with a lead-in:
+#       "First time heard: ...", "The first Boeing seven four seven in two weeks: ...",
+#       "A rare visitor: ...", and every model in ALWAYS_UNIQUE: "G.O.A.T. ..."
+# Switch on the Pi, no restart needed (checked before every announcement):
+#   echo 1 > ~/aircraft-noise-data/ANNOUNCER_VERSION      (or 2; with no file, VERSION is used)
+# Every heard aircraft is scored and logged either way, so the v2 history stays complete.
+VERSION = 2
 UNIQUE_TOP_PERCENT = 3.0
-UNIQUE_WINDOW_DAYS = 14    # "recent heard flights", the ones the percentile is taken among
-UNIQUE_HALF_LIFE_DAYS = 60    # a flight heard this long ago counts half as much as one today
-UNIQUE_MIN_HISTORY = 500   # nothing is called unique until this many flights have been heard
-UNIQUE_PAIR_WEIGHT = 0.5   # share of a rare airline + model pair's extra rarity that counts
-# Each feature's rarity is part "share of flights with a value this rare" and part surprisal
-# beyond what's usual for that feature (which a value never heard before tops): this much of
-# the latter. Both are fair between features with few values (models) and many (places).
-UNIQUE_SURPRISAL_SHARE = 0.7
-UNIQUE_RESCORE_S = 600     # how often the recent flights are re-ranked against the history
-# Models always announced, however common, with their own lead-in (matched within the model
-# name, ignoring case)
+UNIQUE_MIN_HISTORY = 500   # nothing is unique until this many aircraft have been heard
+# Always unique, with their own lead-in (matched within the model name, ignoring case)
 ALWAYS_UNIQUE = {"a380": "G.O.A.T.", "747": "G.O.A.T."}
 HOME_AIRPORT = "London Heathrow"   # the end of a route that doesn't make it unusual
 
@@ -61,6 +58,7 @@ ANNOUNCER_DB = DATA_DIR / "announcer.db"    # heard aircraft and the lookup cach
 # While this file exists nothing is spoken (heard aircraft are still logged):
 #   touch ~/aircraft-noise-data/ANNOUNCER_PAUSED   (rm it to resume; no restart needed)
 PAUSE_FILE = DATA_DIR / "ANNOUNCER_PAUSED"
+VERSION_FILE = DATA_DIR / "ANNOUNCER_VERSION"   # "1" or "2": overrides VERSION (see above)
 CACHE_DIR = DATA_DIR / "announcer-cache"    # route and airport files, voice, spoken clips
 AIRCRAFT_JSON = "/run/readsb/aircraft.json"
 # The home location, from the collection code's location.json (deployed to ~/aircraft-noise).
