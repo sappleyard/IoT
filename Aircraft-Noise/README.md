@@ -253,7 +253,7 @@ putting it back; Spotify Connect and AirPlay stay stopped, as only the phone can
 
   | | Says | Example |
   |---|---|---|
-  | v1 | every heard aircraft | "British Airways 2 7 1, from Frankfurt to London Heathrow, at 3,100 feet, an Airbus A three twenty." |
+  | v1 | every heard aircraft, the moment it's ready: no gap, nothing put back, so each one cuts off whatever was playing (the last announcement included) | "British Airways 2 7 1, from Frankfurt to London Heathrow, at 3,100 feet, an Airbus A three twenty." |
   | v2 | only the top 3% by uniqueness, plus every A380 and 747, with a lead-in | "First time heard: ...", "The first Boeing seven four seven in two weeks: ...", "A rare visitor: ...", "G.O.A.T. ..." |
 
   v2 is the default (`VERSION` in `config.py`). To switch, no restart needed:
@@ -265,7 +265,8 @@ putting it back; Spotify Connect and AirPlay stay stopped, as only the phone can
   is its rarest feature, plus a little for a rare airline + model pair, ranked among the last
   14 days' heard flights. Nothing is unique until 500 aircraft have been heard. Settings
   (`UNIQUE_TOP_PERCENT`, `ALWAYS_UNIQUE`) are in `config.py`.
-- **Each aircraft once per pass**, at least 30 s between announcements, none 20:00-09:00.
+- **Each aircraft once per pass**, none 20:00-09:00, and in v2 at least 30 s between
+  announcements.
 - **Every heard aircraft is logged** in `~/aircraft-noise-data/announcer.db` (table `heard`:
   who, when, how far, which mics, its ADS-B category, its uniqueness score, percentile and
   reason, what was said, or why not: `not unique` (v2), `quiet hours`, `paused`...): the

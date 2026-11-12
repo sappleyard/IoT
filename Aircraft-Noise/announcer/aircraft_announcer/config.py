@@ -15,16 +15,18 @@ MODELS_DIR = HERE.parent / "models"
 # --- Announcements ---------------------------------------------------------------------------
 QUIET_FROM_HOUR = 20       # no announcements from 20:00...
 QUIET_UNTIL_HOUR = 9       # ...until 09:00 (heard aircraft are still logged)
-MIN_GAP_S = 30             # at least this long between announcement starts, so none overlap
+MIN_GAP_S = 30             # v2: at least this long between announcement starts
 VOLUME = 25                # Sonos volume for announcements, 0-100
 SPEAKER = None             # Sonos IP, or None to find one on the network (SSDP)
 HTTP_PORT = 8765           # the Sonos fetches each spoken clip from this port on the Pi
 VOICE = "en_GB-alan-medium"   # Piper voice, downloaded by setup/install.sh
 
 # --- What is said: v1 or v2 --------------------------------------------------------------------
-# v1  every heard aircraft:
+# v1  every heard aircraft, the moment it's ready: no gap, nothing put back after, so each
+#     announcement cuts off whatever was playing, the previous announcement included:
 #       "British Airways 2 7 1, from Frankfurt to London Heathrow, at 3,100 feet, an Airbus A three twenty."
-# v2  only unusual ones (the top UNIQUE_TOP_PERCENT by uniqueness.py's score), with a lead-in:
+# v2  only unusual ones (the top UNIQUE_TOP_PERCENT by uniqueness.py's score), at least
+#     MIN_GAP_S apart, putting back what was playing afterwards, with a lead-in:
 #       "First time heard: ...", "The first Boeing seven four seven in two weeks: ...",
 #       "A rare visitor: ...", and every model in ALWAYS_UNIQUE: "G.O.A.T. ..."
 # Switch on the Pi, no restart needed (checked before every announcement):

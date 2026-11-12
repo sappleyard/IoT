@@ -54,9 +54,11 @@ class Speaker:
         self.ip = ip      # None: find one on the network each time
         self.clips = clip_server
 
-    def play(self, clip, volume):
-        """Play clip (a file in the clip server's folder), wait for it, then put back what was
-        playing. Returns True if the speaker played it."""
+    def play(self, clip, volume, restore=True):
+        """Play clip (a file in the clip server's folder). Returns True if the speaker took it.
+        restore: wait for it to finish, then put back what was playing (v2). Without (v1) it
+        starts straight away and returns, cutting off whatever was playing, and nothing is put
+        back."""
         try:
             speaker = soco.SoCo(self.ip) if self.ip else soco.discovery.any_soco()
             if speaker is None:
@@ -64,12 +66,14 @@ class Speaker:
                 return False
             speaker = speaker.group.coordinator
             snap = Snapshot(speaker)
-            snap.snapshot()
+            if restore:
+                snap.snapshot()
             speaker.volume = volume
             speaker.play_uri(f"http://{local_ip_for(speaker.ip_address)}:{self.clips.port}/"
                              f"{clip.name}", title="Aircraft announcer")
-            time.sleep(clip_seconds(clip) + 1)
-            snap.restore()
+            if restore:
+                time.sleep(clip_seconds(clip) + 1)
+                snap.restore()
             return True
         except Exception as e:     # network, UPnP or speaker errors: skip this announcement
             log.warning("Sonos: %s", e)

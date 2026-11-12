@@ -114,13 +114,16 @@ class Announcer(threading.Thread):
                     text = f"{score['lead_in']} {text}"
                 if status is None:
                     started = time.time()
-                    self.next_free = started + C.MIN_GAP_S
-                    clip = self.clips_dir / f"{int(started)}.wav"
+                    if v2:      # v1 has no gap: each clip cuts off the one before
+                        self.next_free = started + C.MIN_GAP_S
+                    clip = self.clips_dir / f"{time.time_ns()}.wav"
                     self.voice.to_wav(text, clip)
-                    status = "announced" if self.speaker.play(clip, C.VOLUME) else "speaker failed"
+                    played = self.speaker.play(clip, C.VOLUME, restore=v2)
+                    status = "announced" if played else "speaker failed"
                     for old in sorted(self.clips_dir.glob("*.wav"))[:-10]:
                         old.unlink()
-                    self.next_free = max(self.next_free, time.time())
+                    if v2:
+                        self.next_free = max(self.next_free, time.time())
                 log.info("v%d %s (%.1f bits, %.0f%%, %s): %s", 2 if v2 else 1, status,
                          score["uniqueness"], score["percentile"], score["reason"], text)
             except Exception:   # one bad lookup or clip mustn't stop the announcer
@@ -183,7 +186,7 @@ def run(dry_run, model):
                 elif tick - handled.get(match["hex"], 0) > C.REANNOUNCE_AFTER_S:
                     silent = ("paused" if C.PAUSE_FILE.exists()
                               else "quiet hours" if quiet_hours(tick) else None)
-                    if silent or not announcer.busy(tick):
+                    if silent or version() == 1 or not announcer.busy(tick):
                         handled[match["hex"]] = tick
                         announcer.jobs.put(({**match, "ts": t, "mics": ",".join(fired),
                                              "probability": float(max(probs))}, silent))
