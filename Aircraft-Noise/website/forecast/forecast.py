@@ -12,11 +12,10 @@ happen. Instead the outlook names the most likely kind:
   confidence  the share of runs of that kind, as a percentage
   reason      one of REASONS, from the kind, the confidence and how much the weather
               ensemble's members disagree about the wind
-Also: low and high (10th and 90th percentiles of all runs, for anyone who wants the spread),
-wind and weather in a few words. Nothing else: no times, positions, distances or altitudes,
+Also: wind and weather in a few words. Nothing else: no times, positions, distances or altitudes,
 so the file says nothing about where the house is.
 
-    forecast.py OUT.json [--db PATH] [--runs N]
+    forecast.py OUT.json
 """
 
 import argparse
@@ -32,7 +31,6 @@ import weather
 DB = Path.home() / "aircraft-noise-data" / "noise.db"
 DAYS = 10
 RUNS = 4000
-LOW_HIGH = (10, 90)             # percentiles for the published range
 DAYTIME = range(7, 22)          # local hours the wind and weather summary describes
 SETTLED_SHARE = 0.8             # a run's day is west (east) if at least this share of its
                                 # daytime hours (model.LABEL_HOURS) are west (east)
@@ -50,12 +48,10 @@ SEED = 1                        # same inputs, same numbers: reruns don't jitter
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("out")
-    parser.add_argument("--db", default=str(DB))
-    parser.add_argument("--runs", type=int, default=RUNS)
     args = parser.parse_args()
 
     now = int(time.time()) // model.HOUR_S * model.HOUR_S     # start of the current hour
-    hist = model.history(args.db, now)
+    hist = model.history(DB, now)
     label = model.labels(hist)
     # Wind for each past hour looks a few hours ahead, so fetch a little past now.
     grid = np.arange(hist["ts"][0], now + model.LOOKAHEAD_H * model.HOUR_S, model.HOUR_S)
@@ -74,8 +70,7 @@ def main():
     future = np.arange(now, end, model.HOUR_S, dtype=np.int64)
     tails = model.lookahead([np.interp(future, ens_hours, m, right=np.nan) for m in ens_tail])
     rng = np.random.default_rng(SEED)
-    per_hour, path, member = model.simulate(params, cov, start, tails, means, spread, future,
-                                            args.runs, rng, states=True)
+    per_hour, path = model.simulate(params, cov, start, tails, means, spread, future, RUNS, rng)
     today = model.local_date([now])[0]
     so_far = int(hist["passes"][hist["ts"] >= midnight].sum())
     dates, totals = model.daily(future, per_hour, (today, so_far))
@@ -92,7 +87,6 @@ def main():
     for i, date in enumerate(dates[:DAYS]):
         pick = (det_dates == date) & daytime
         wind, words = weather.summary(speed[pick], direction[pick], code[pick])
-        low, high = np.percentile(totals[:, i], LOW_HIGH)
         hours = (future_dates == date) & labelled
         west = (path[:, hours] == model.WEST).sum(axis=1)
         n = hours.sum()
@@ -110,7 +104,6 @@ def main():
                   else str(top))
         days.append({"date": date, "passes": int(round(np.median(totals[kind == top, i]))),
                      "confidence": confidence, "reason": REASONS[reason], "kind": str(top),
-                     "low": int(round(low)), "high": int(round(high)),
                      "wind": wind, "weather": words})
         print(f"  {date}: {top} {confidence}% (ensemble sd {disagree:.1f} kt) -> {reason}")
 

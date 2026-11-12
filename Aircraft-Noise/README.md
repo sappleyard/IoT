@@ -282,7 +282,7 @@ change, then `announcer/deploy.sh`.
 
 **Using a newly trained model:**
 1. `python3 model/audibility.py` and `python3 model/dataset.py --local` (latest data), then
-   `python3 model/train.py --heli-weight 4 --export cnn-2026-12-01` (any name). This writes
+   `python3 model/train.py --export` (named cnn-DATE; `--export NAME` to choose). This writes
    `announcer/models/cnn-2026-12-01.onnx` and `.json` (threshold, feature settings, test scores).
 2. Set `MODEL = "cnn-2026-12-01"` in `announcer/aircraft_announcer/config.py`.
 3. `announcer/deploy.sh`. The log's first line names the model and its scores.
@@ -326,8 +326,7 @@ needs a write key for that repo only, and a daily cron job:
 
 **Forecast page** (`outlook.html`, filled from `data/outlook.json`):
 `{"generated": "2026-11-06", "days": [{"date": "2026-11-06", "passes": 640, "confidence": 95,
-"reason": "Westerly wind, arrivals overhead", "kind": "west", "low": 300, "high": 660,
-"wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Any missing day or field shows a dash.
+"reason": "Westerly wind, arrivals overhead", "kind": "west", "wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Any missing day or field shows a dash.
 `publish.sh` runs `forecast/forecast.py` after `export.py`, and keeps the previous day's file if
 Open-Meteo can't be reached.
 
@@ -346,8 +345,7 @@ members and its own draw of the fitted parameters; today's passes so far are add
 runs. Each run's day is west, east or a switch day; `passes` is the median of the most likely
 kind, `confidence` the share of runs of that kind, and `reason` one of a fixed list in
 `forecast.py` (`REASONS`; low confidence reads as "Marginal wind" or, with a wide ensemble
-spread, "Far ahead"). `low`/`high` (10th-90th percentile of all runs) stay in the file but
-aren't shown. Wind and weather are Heathrow's daytime vector-mean wind and most significant WMO
+spread, "Far ahead"). Wind and weather are Heathrow's daytime vector-mean wind and most significant WMO
 code, from Open-Meteo's deterministic forecast. All weather requests use Heathrow's
 coordinates, never the house's.
 

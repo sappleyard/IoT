@@ -1,19 +1,14 @@
 """Train the aircraft classifier on the windows from dataset.py, and compare it with baselines.
 
-    python3 model/train.py                  # chunked split: 1 fold of 7 for test, 1 for validation
-    python3 model/train.py --seed 3         # a different random chunked split
-    python3 model/train.py --cv             # every fold is the test fold once: mean +- spread
-    python3 model/train.py --chunk-min 30   # longer chunks (fewer windows lost to the guards)
-    python3 model/train.py --hours 7-23     # daytime only (checks it isn't learning the clock)
-    python3 model/train.py --cv --heli-weight 5   # helicopter windows count 5x in training
-                                                  # (results_cv_heli5.txt, beside the default's)
-    python3 model/train.py --heli-weight 4 --export cnn-heli4-2026-11-05
-                                            # train, then export the CNN for the announcer
+    python3 model/train.py              # one split: 1 fold of 7 for test, 1 for validation
+    python3 model/train.py --cv         # every fold is the test fold once: mean +- spread
+    python3 model/train.py --export     # train, then export the CNN for the announcer
+                                        # (as cnn-YYYY-MM-DD; --export NAME to name it)
 
-Needs torch, numpy and scikit-learn (Mac venv). Writes model/data/model.pt and results.txt.
---export NAME also writes announcer/models/NAME.onnx and NAME.json: the CNN with its channel
-scaling built in, and the threshold, feature settings and test scores. Set MODEL = "NAME" in
-announcer/aircraft_announcer/config.py and run announcer/deploy.sh to make it the announcer.
+Needs torch, numpy and scikit-learn (Mac venv). Writes model/data/model.pt and results.txt
+(results_cv.txt for --cv). --export also writes announcer/models/NAME.onnx and NAME.json: the
+CNN with its channel scaling built in, and the threshold, feature settings and test scores. Set
+MODEL = "NAME" in announcer/aircraft_announcer/config.py and run announcer/deploy.sh to use it.
 
 The time line is cut into fixed CHUNK_MIN-minute chunks, and whole chunks go to training,
 validation or test, never single seconds: neighbouring seconds are almost the same (strong
@@ -67,6 +62,9 @@ DISTANCE_BINS = [(0, 1), (1, 2), (2, 5), (5, 20)]   # km, slant at closest appro
 CHUNK_MIN = 15     # minutes per chunk
 FOLDS = 7          # chunks dealt into 7 folds: ~14% test, ~14% validation, ~71% training
 BUSY_PASSES = 4    # a chunk with 4+ audible passes is busy
+SEED = 0           # which random dealing of chunks into folds
+EPOCHS = 15
+HELI_WEIGHT = 4.0  # helicopter windows' training loss counts 4x (they're ~3% of passes)
 KINDS = ["quiet", "some", "busy"]
 
 
@@ -265,9 +263,9 @@ def describe_sets(d, sets, guarded, say):
     say(f"  {int(guarded.sum())} windows ({100 * guarded.mean():.1f}%) dropped by the guards")
 
 
-def run(d, tr, va, te, epochs, say, seed=0, heli_weight=1.0):
+def run(d, tr, va, te, say, seed=SEED, heli_weight=HELI_WEIGHT, epochs=EPOCHS):
     """Train the three detectors on tr, choose thresholds on va, report on te.
-    Helicopter windows' training loss counts heli_weight times (they're ~3% of passes).
+    Helicopter windows' training loss counts heli_weight times.
     Returns (cnn model, scale, cnn threshold, summary numbers for the test fold)."""
     # Scale each channel by its spread in the training data (the values are dB above background).
     x, y = d["x"], d["y"]
@@ -337,7 +335,7 @@ class Exported(nn.Module):
         return torch.sigmoid(self.model(x / self.scale))
 
 
-def export(name, model, scale, threshold, scores, d, tr, args):
+def export(name, model, scale, threshold, scores, d, tr):
     """Write announcer/models/NAME.onnx and NAME.json, and check the ONNX file gives the same
     probabilities as PyTorch."""
     import json
@@ -372,8 +370,8 @@ def export(name, model, scale, threshold, scores, d, tr, args):
         "features": features.settings(),
         "trained_on": {"from": time.strftime("%Y-%m-%d", time.localtime(t.min())),
                        "to": time.strftime("%Y-%m-%d", time.localtime(t.max())),
-                       "windows": int(tr.sum()), "heli_weight": args.heli_weight,
-                       "chunk_min": args.chunk_min, "folds": args.folds, "seed": args.seed},
+                       "windows": int(tr.sum()), "heli_weight": HELI_WEIGHT,
+                       "chunk_min": CHUNK_MIN, "folds": FOLDS, "seed": SEED},
         # Scores on the test fold (chunks never seen in training or threshold tuning).
         "scores": {"auc": round(float(scores["auc"]), 3), "recall": round(float(scores["recall"]), 3),
                    "false alarms by day": f"{100 * scores['fa_day']:.1f}%",
@@ -389,72 +387,52 @@ def export(name, model, scale, threshold, scores, d, tr, args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--cv", action="store_true", help="each fold is the test fold once")
-    parser.add_argument("--seed", type=int, default=0, help="which random chunked split")
-    parser.add_argument("--chunk-min", type=int, default=CHUNK_MIN, help="minutes per chunk")
-    parser.add_argument("--folds", type=int, default=FOLDS)
-    parser.add_argument("--hours", help="only use windows in these local hours, e.g. 7-23")
-    parser.add_argument("--epochs", type=int, default=15)
-    parser.add_argument("--heli-weight", type=float, default=1.0,
-                        help="helicopter windows' training loss counts this many times")
-    parser.add_argument("--export", metavar="NAME",
-                        help="also export the CNN for the announcer as announcer/models/NAME.*")
+    parser.add_argument("--export", metavar="NAME", nargs="?",
+                        const=time.strftime("cnn-%Y-%m-%d"),
+                        help="also export the CNN for the announcer (default name cnn-DATE)")
     args = parser.parse_args()
     if args.export and args.cv:
         raise SystemExit("--export goes with a plain run (one model), not --cv")
-    # Results of weighted runs go to their own files, so they can be compared with the default.
-    suffix = f"_heli{args.heli_weight:g}" if args.heli_weight != 1 else ""
-    results = RESULTS.with_name(f"results{suffix}.txt")
-    results_cv = RESULTS.with_name(f"results_cv{suffix}.txt")
-    model_path = MODEL.with_name(f"model{suffix}.pt")
-    if 60 % args.chunk_min and args.chunk_min % 60:
-        raise SystemExit("--chunk-min must divide an hour (5, 10, 15, 20, 30) or be whole hours")
 
     d = dict(np.load(DATA))
     use = np.ones(len(d["y"]), bool)
-    if args.hours:
-        lo, hi = map(int, args.hours.split("-"))
-        use = (d["hour"] >= lo) & (d["hour"] < hi)
     # The earliest second a window's input reaches back to: its own seconds, then the whole
     # background minutes before the minute it starts in.
     guard_s = d["x"].shape[2] + 60 * (BG_MINUTES + 1)
-    starts, d["chunk"], kinds = make_chunks(d, 60 * args.chunk_min)
+    chunk_s = 60 * CHUNK_MIN
+    starts, d["chunk"], kinds = make_chunks(d, chunk_s)
     d["kind"] = kinds[d["chunk"]]
-    rng = np.random.default_rng(args.seed)
-    fold = deal_folds(kinds, args.folds, rng)
+    fold = deal_folds(kinds, FOLDS, np.random.default_rng(SEED))
     report_lines = []
 
     def say(line=""):
         print(line)
         report_lines.append(line)
 
-    say(f"{len(starts)} chunks of {args.chunk_min} min, dealt into {args.folds} folds "
-        f"(seed {args.seed}); guard {guard_s} s"
-        + (f"; hours {args.hours}" if args.hours else "")
-        + (f"; helicopter weight {args.heli_weight:g}" if args.heli_weight != 1 else ""))
+    say(f"{len(starts)} chunks of {CHUNK_MIN} min, dealt into {FOLDS} folds; guard {guard_s} s; "
+        f"helicopter weight {HELI_WEIGHT:g}")
     say("Chunks of each kind: " + ", ".join(f"{kind_name(k)} {(kinds == k).sum()}" for k in range(6)))
 
     if not args.cv:
-        tr, va, te, guarded = split(d, starts, 60 * args.chunk_min, fold, 0, 1, guard_s, use)
+        tr, va, te, guarded = split(d, starts, chunk_s, fold, 0, 1, guard_s, use)
         describe_sets(d, [("train", tr), ("validation", va), ("test", te)], guarded, say)
-        model, scale, c_thr, summary = run(d, tr, va, te, args.epochs, say, args.seed,
-                                           args.heli_weight)
+        model, scale, c_thr, summary = run(d, tr, va, te, say)
         torch.save({"state_dict": model.state_dict(), "scale": scale, "threshold": float(c_thr),
                     "channels": list(d["channels"]), "window_s": d["x"].shape[2],
-                    "chunk_min": args.chunk_min, "seed": args.seed, "heli_weight": args.heli_weight,
-                    "train_chunks": starts[np.unique(d["chunk"][tr])].tolist()}, model_path)
-        results.write_text("\n".join(report_lines) + "\n")
-        print(f"\nModel -> {model_path}\nResults -> {results}")
+                    "train_chunks": starts[np.unique(d["chunk"][tr])].tolist()}, MODEL)
+        RESULTS.write_text("\n".join(report_lines) + "\n")
+        print(f"\nModel -> {MODEL}\nResults -> {RESULTS}")
         if args.export:
-            export(args.export, model, scale, c_thr, summary["cnn"], d, tr, args)
+            export(args.export, model, scale, c_thr, summary["cnn"], d, tr)
         return
 
     folds = []
-    for test_fold in range(args.folds):
-        tr, va, te, guarded = split(d, starts, 60 * args.chunk_min, fold, test_fold,
-                                    (test_fold + 1) % args.folds, guard_s, use)
-        say(f"\n=== Test fold {test_fold + 1} of {args.folds} ===")
+    for test_fold in range(FOLDS):
+        tr, va, te, guarded = split(d, starts, chunk_s, fold, test_fold, (test_fold + 1) % FOLDS,
+                                    guard_s, use)
+        say(f"\n=== Test fold {test_fold + 1} of {FOLDS} ===")
         describe_sets(d, [("train", tr), ("validation", va), ("test", te)], guarded, say)
-        folds.append(run(d, tr, va, te, args.epochs, say, args.seed, args.heli_weight)[3])
+        folds.append(run(d, tr, va, te, say)[3])
     say(f"\nCross-validation over {len(folds)} folds: mean +- standard deviation; "
         "passes detected: all folds' test passes together")
     for name in folds[0]:
@@ -471,8 +449,9 @@ def main():
             unit = "%" if pct == 100 else ""
             parts.append(f"{label} {pct * v.mean():{fmt}}{unit} +- {pct * v.std():{fmt}}{unit}")
         say(f"{name:<10} " + ", ".join(parts))
-    results_cv.write_text("\n".join(report_lines) + "\n")
-    print(f"\nResults -> {results_cv}")
+    cv_path = RESULTS.with_name("results_cv.txt")
+    cv_path.write_text("\n".join(report_lines) + "\n")
+    print(f"\nResults -> {cv_path}")
 
 
 if __name__ == "__main__":

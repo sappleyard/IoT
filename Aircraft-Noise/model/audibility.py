@@ -267,7 +267,7 @@ def main():
         ax.grid(alpha=0.3)
     axes[0].set_ylabel("audibility score (0.5 = like no aircraft)")
     axes[0].legend(fontsize=7)
-        fig.suptitle("How audible aircraft are, by distance, direction and time of day")
+    fig.suptitle("How audible aircraft are, by distance, direction and time of day")
     fig.tight_layout()
     fig.savefig(OUT / "audibility.png", dpi=150)
     MODEL_FILE.write_text(json.dumps(model, indent=1))

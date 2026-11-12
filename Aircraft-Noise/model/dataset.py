@@ -168,19 +168,16 @@ def describe(d):
     for label, name in [(1, "aircraft"), (0, "quiet")]:
         s = d["y"] == label
         print(f"{name} windows at night (23:00-07:00): {100 * night[s].mean():.0f}%")
-    print("If quiet windows are mostly at night and aircraft ones by day, also train with "
-          "--hours 7-23 to check the model isn't just telling day from night.")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--local", action="store_true", help="use the existing copy, don't fetch")
-    parser.add_argument("--db", type=Path, default=DB, help=f"database (default: {DB})")
     args = parser.parse_args()
     assert INAUDIBLE < AUDIBLE, "quiet must exclude every aircraft that counts as a positive"
     if not args.local:
         fetch()
-    data = build(*load(sqlite3.connect(args.db)))
+    data = build(*load(sqlite3.connect(DB)))
     OUT.parent.mkdir(exist_ok=True)
     np.savez_compressed(OUT, **data)
     describe(data)
