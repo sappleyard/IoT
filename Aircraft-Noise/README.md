@@ -313,7 +313,7 @@ if the announcer's `heard` log has that aircraft during it (unknown before the l
 2026), and counts, top lists and the flight table use heard flights (a "Heard only" switch shows
 every pass). **Highlights**: up to 8 heard flights per day, then every A380 and 747 ("G.O.A.T."), the ones the announcer's uniqueness
 score rates most unusual (announced, or at least the 90th percentile), with the same fields plus
-the reason ("First time heard", "The first Boeing 747 in two weeks"); arrows step through days.
+a short label from the reason ("First recorded", "Rare", "First in 2 weeks"); arrows step through days.
 
 **Publishing** runs on the Pi: `website/deploy.sh` copies the code; `publish.sh` rebuilds
 `passes.json` into `~/aircraft-website/pages` (a clone of the site repo) and pushes it. It

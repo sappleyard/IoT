@@ -16,6 +16,7 @@ announcer's uniqueness model (uniqueness.py) against the heard flights before ea
 
 import bisect
 import json
+import re
 import sqlite3
 import sys
 import time
@@ -54,6 +55,26 @@ def covered_hours(spans, day):
     start = datetime.combine(day, datetime.min.time()).timestamp()
     end = datetime.combine(day + timedelta(days=1), datetime.min.time()).timestamp()
     return sum(max(0, min(b, end) - max(a, start)) for a, b in spans) / 3600
+
+
+NUMBERS = "zero one two three four five six seven eight nine ten eleven twelve".split()
+
+
+def label(phrase):
+    """The site's short label for an announcer lead-in: 'First time heard:' -> 'First recorded',
+    'A rare visitor:' -> 'Rare', 'The first Boeing 747 in two weeks:' -> 'First in 2 weeks'.
+    Anything else (G.O.A.T.) is shown as it is."""
+    phrase = phrase.rstrip(":")
+    if phrase == "First time heard":
+        return "First recorded"
+    if phrase == "A rare visitor":
+        return "Rare"
+    m = re.fullmatch(r"The first .+ in (\w+)(?: (days|weeks))?", phrase)
+    if m:
+        n, unit = m.groups()
+        n = str(NUMBERS.index(n)) if n in NUMBERS else n
+        return f"First in {n} {unit}" if unit else f"First in {n}"
+    return phrase
 
 
 def heard_times():
@@ -105,7 +126,7 @@ def highlights(before):
             picked.append((score["always"], score["unique"], score["percentile"], [
                 when.strftime("%H:%M"), callsign, row["airline"] or "", row["origin"] or "",
                 row["destination"] or "", row["aircraft_model"] or "",
-                score["phrase"].rstrip(":")]))
+                label(score["phrase"])]))
     out = []
     for day, (picked, _) in sorted(days.items()):
         picked.sort(key=lambda p: p[:3], reverse=True)
