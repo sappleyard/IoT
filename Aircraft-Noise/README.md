@@ -245,17 +245,32 @@ Runs on the Pi beside the collection services and only reads their database, so 
 carries on unchanged. Every second it runs the model on each mic's last 30 s (the same windows
 it was trained on). When the model hears an aircraft it finds which one: the nearest aircraft
 whose sound, sent slant / 343 m/s earlier, was arriving then (within 3 km by day, 8 km at night).
-Then it says, on the Sonos, over whatever is playing:
+If that aircraft is unusual (below), it says, on the Sonos, over whatever is playing:
 
-> British Airways 2 7 1, from Frankfurt-am-Main to London Heathrow, at 3,100 feet, an Airbus A three twenty.
+> First time heard: Air Astana 6 6 3, from Almaty to London Heathrow, at 3,400 feet, an Airbus A three twenty one.
 
 - **Route, airport and airline names** from the VRS standing data (free; one file per airline,
   downloaded when first needed and refreshed weekly). **Aircraft model** from adsbdb (free),
   cached for a month. Anything unknown is left out of the sentence.
+- **Only unique aircraft (v2)**, scored against the history of heard aircraft
+  (`uniqueness.py`). Each feature (airline, aircraft model, the end of the route that isn't
+  Heathrow, and the ADS-B category when the model is unknown) gets a rarity in bits: how much
+  more surprising its value is than that feature's values usually are, mixed with the share
+  of heard flights whose value is as rare. Counts are recency-weighted (60-day half-life), so
+  a model that stops coming becomes rare again. A flight's score is its rarest feature, plus a
+  little for a rare airline + model pair; it's ranked among the last 14 days' heard flights,
+  and only the **top 3%** are announced (about 5-10 a busy day so far; more as the
+  history grows past its first weeks). The reason picks a lead-in: "First time heard:",
+  "The first Boeing seven four seven in two weeks:" or "A rare visitor:". Nothing is
+  unique until 500 aircraft have been heard. The airframe and night were tried and dropped:
+  a new airframe is the norm, and night isn't rare (nor announced). Settings
+  (`UNIQUE_TOP_PERCENT`, 100 = announce everything, as v1 did) are in `config.py`.
 - **Each aircraft once per pass**, at least 30 s between announcements, none 20:00-09:00.
 - **Every heard aircraft is logged** in `~/aircraft-noise-data/announcer.db` (table `heard`:
-  who, when, how far, which mics, what was said, or why not), quiet hours included: the
-  history v2's "unique aircraft only" filter will use.
+  who, when, how far, which mics, its ADS-B category, its uniqueness score, percentile and
+  reason, what was said, or why not: `not unique`, `quiet hours`, `paused`...), quiet hours
+  included: the history the score is taken from. Which were rare:
+  `ssh sebpi@sebpi "sqlite3 aircraft-noise-data/announcer.db \"SELECT datetime(ts,'unixepoch'), percentile, reason, text FROM heard WHERE percentile >= 97\""`
 - Voice: Piper (`en_GB-alan-medium`), offline on the Pi, about 1 s per sentence.
 
 **Set up** (after the collection): `announcer/deploy.sh`, then once on the Pi (needs your
@@ -335,4 +350,4 @@ actual days fell inside low-high, not 8 in 10, so the ranges are somewhat too na
 ## Next steps
 
 See the design summary (`docs/`): v2 (announce only unique aircraft, scored from the `heard`
-history), then the publishing API and dashboard.
+history) is done (see Announcer); next, the publishing API and dashboard.

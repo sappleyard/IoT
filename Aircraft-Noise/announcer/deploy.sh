@@ -14,5 +14,6 @@ rsync -az --delete --exclude __pycache__ --exclude .DS_Store --exclude .venv \
 echo "Copied to $host:aircraft-announcer"
 
 # The service runs as your user, so it can be restarted without sudo: stop it and systemd
-# starts it again with the new code (and model).
-ssh "$host" 'pkill -u "$USER" -f "python -m aircraft_announcer" && echo "Announcer restarting" || true'
+# starts it again with the new code (and model). "[p]ython" so the pattern doesn't match this
+# ssh command's own shell, whose command line contains it (pkill would kill it and fail).
+ssh "$host" 'pkill -u "$USER" -f "[p]ython -m aircraft_announcer" && echo "Announcer restarting" || true'

@@ -21,6 +21,22 @@ SPEAKER = None             # Sonos IP, or None to find one on the network (SSDP)
 HTTP_PORT = 8765           # the Sonos fetches each spoken clip from this port on the Pi
 VOICE = "en_GB-alan-medium"   # Piper voice, downloaded by setup/install.sh
 
+# --- Only unique aircraft (v2: see uniqueness.py) ----------------------------------------------
+# Each heard flight is scored for how rare its airline, model, route and ADS-B category are in
+# the heard history, then ranked among the recent heard flights: only the top few per cent are
+# announced (3% is about 10-20 on a busy day). 100 announces every heard aircraft, as v1 did.
+UNIQUE_TOP_PERCENT = 3.0
+UNIQUE_WINDOW_DAYS = 14    # "recent heard flights", the ones the percentile is taken among
+UNIQUE_HALF_LIFE_DAYS = 60    # a flight heard this long ago counts half as much as one today
+UNIQUE_MIN_HISTORY = 500   # nothing is called unique until this many flights have been heard
+UNIQUE_PAIR_WEIGHT = 0.5   # share of a rare airline + model pair's extra rarity that counts
+# Each feature's rarity is part "share of flights with a value this rare" and part surprisal
+# beyond what's usual for that feature (which a value never heard before tops): this much of
+# the latter. Both are fair between features with few values (models) and many (places).
+UNIQUE_SURPRISAL_SHARE = 0.7
+UNIQUE_RESCORE_S = 600     # how often the recent flights are re-ranked against the history
+HOME_AIRPORT = "London Heathrow"   # the end of a route that doesn't make it unusual
+
 # --- Matching a heard sound to an aircraft ----------------------------------------------------
 SPEED_OF_SOUND = 343.0     # m/s: sound from an aircraft arrives slant / 343 s after it's sent
 # The model fires on windows ending from about 5 s before to 15 s after an aircraft's sound
