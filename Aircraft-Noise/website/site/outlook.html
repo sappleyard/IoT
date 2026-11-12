@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pass Outlook</title>
-  <meta name="description" content="A 10-day outlook of how many aircraft will pass close to one house.">
+  <title>Flight Passes · 10-Day Forecast</title>
+  <meta name="description" content="10-day forecast of daily aircraft passes within 5 km of one house.">
   <link rel="preload" href="fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -13,23 +13,23 @@
     <a class="nav__name" href="./">Flight Passes</a>
     <nav class="nav__links" aria-label="Main">
       <a class="nav__link" href="./">Heard</a>
-      <a class="nav__link" href="outlook.html" aria-current="page">Outlook</a>
+      <a class="nav__link" href="outlook.html" aria-current="page">Forecast</a>
     </nav>
   </header>
 
   <main>
     <section class="head">
-      <h1 class="head__title">The next 10 days.</h1>
-      <p class="head__lede">How many aircraft to expect within 5 km each day, estimated from the weather forecast by a model trained on the passes logged so far.</p>
+      <h1 class="head__title">10-day forecast</h1>
+      <p class="head__lede">Expected daily aircraft passes within 5 km, modelled from the Heathrow weather forecast.</p>
     </section>
 
     <section class="section" style="padding-top:0">
-      <p class="wip" id="status">Forecast coming soon.</p>
+      <p class="wip" id="status">Forecast currently unavailable.</p>
       <div class="scroll">
         <table>
           <thead>
             <tr>
-              <th scope="col">Day</th>
+              <th scope="col">Date</th>
               <th scope="col" class="num">Expected passes</th>
               <th scope="col" class="num">Confidence</th>
               <th scope="col">Reason</th>
@@ -44,9 +44,10 @@
   </main>
 
   <footer class="foot">
-    <h2 class="foot__title">About this outlook</h2>
-    <p>Most days are one of two kinds. When Heathrow lands towards the west, its arrivals pass overhead, about 650 a day; when it lands towards the east, only about 40 do. So the outlook is mostly a forecast of which way Heathrow will land, and Heathrow lands into the wind.</p>
-    <p>It's made each night from the wind forecast at Heathrow: thousands of simulated runs through the next 10 days, each on one member of a weather ensemble, with Heathrow switching direction as often as it has done in similar winds so far. Each run's day is westerly, easterly or a day Heathrow turns round. Expected passes is the typical count for the most likely of those, and confidence is the share of runs that agree. Confidence is lowest when the wind is near the point where Heathrow turns round, or so far ahead that the weather forecasts disagree. Wind and weather are for Heathrow in the daytime.</p>
+    <h2 class="foot__title">Methodology</h2>
+    <p><strong>Runway direction.</strong> Daily passes depend mainly on which way Heathrow is landing. On westerly operations the arrival stream passes overhead (about 650 passes a day); on easterly operations about 40 do. Heathrow lands into the wind, so the forecast is driven by the wind.</p>
+    <p><strong>Model.</strong> A Markov chain of runway direction, with switching probabilities fitted to the observed history against forecast tailwind. It is simulated 4,000 times over 10 days using the ECMWF ensemble forecast for Heathrow, and is rerun each night.</p>
+    <p><strong>Columns.</strong> Each simulated day is classed as westerly, easterly or a mid-day runway change. Expected passes is the typical count for the most likely class; confidence is the share of simulations in that class. Wind and weather are daytime conditions at Heathrow.</p>
     <p id="updated"></p>
   </footer>
 

@@ -48,7 +48,9 @@ async function start() {
   draw(new Map(data.days.map((d) => [d.date, d])));
   if (data.days.length) {
     document.getElementById("status").hidden = true;
-    document.getElementById("updated").textContent = `Forecast made ${data.generated}.`;
+    const issued = new Date(data.generated + "T12:00:00Z").toLocaleDateString("en-GB",
+      { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
+    document.getElementById("updated").textContent = `Forecast issued ${issued}.`;
   }
 }
 

@@ -51,13 +51,13 @@ function drawStats(rows, days, counts, listened) {
   const helis = heardRows.filter((r) => r[7] === "Helicopter").length;
   const judged = rows.filter((r) => r[8] !== null).length;
   const stats = [
-    ["Flights heard", number(heardRows.length), `over ${listened.size} days`],
-    ["Average heard per full day", full.length ? number(Math.round(fullTotal / full.length)) : "–",
+    ["Heard flights", number(heardRows.length), `${listened.size} days`],
+    ["Daily average", full.length ? number(Math.round(fullTotal / full.length)) : "–",
       `${full.length} full days`],
-    ["Most heard in a day", number(busyCount), shortDay(busyDay)],
-    ["Share of passes heard", judged ? `${Math.round(100 * heardRows.length / judged)}%` : "–",
-      `of ${number(judged)} within 5 km`],
-    ["Helicopters heard", number(helis), `${(100 * helis / (heardRows.length || 1)).toFixed(1)}% of heard flights`],
+    ["Peak day", number(busyCount), shortDay(busyDay)],
+    ["Detection rate", judged ? `${Math.round(100 * heardRows.length / judged)}%` : "–",
+      `of ${number(judged)} passes within 5 km`],
+    ["Helicopters", number(helis), `${(100 * helis / (heardRows.length || 1)).toFixed(1)}% of heard flights`],
   ];
   $("stats").replaceChildren(...stats.map(([label, value, note]) =>
     el("div", { className: "stat" },
@@ -78,10 +78,10 @@ function drawDays(rows, days, counts, listened) {
     const link = el("a", { href: "#flights", textContent: shortDay(d) });
     const name = el("td", {}, link);
     if (hours < FULL_DAY_HOURS) {
-      name.append(el("span", { className: "tag", textContent: `${Math.round(hours)} h logged` }));
+      name.append(el("span", { className: "tag", textContent: `Partial · ${Math.round(hours)} h` }));
     }
     if (!listening) {
-      name.append(el("span", { className: "tag tag--quiet", textContent: "training day" }));
+      name.append(el("span", { className: "tag tag--quiet", textContent: "Training data" }));
     }
     const row = el("tr", {},
       name,
@@ -116,7 +116,7 @@ function drawHighlights() {
       cell(from && to ? `${from} → ${to}` : ""), cell(aircraft),
       el("td", { className: "nowrap" }, el("span", { className: "tag tag--why", textContent: why }))))
     : [el("tr", {}, el("td", { colSpan: 6, className: "empty",
-      textContent: "Nothing unusual heard this day." }))]));
+      textContent: "No highlights for this day." }))]));
   $("highlights-older").disabled = at === 0;
   $("highlights-newer").disabled = at === days.length - 1;
 }
@@ -219,7 +219,7 @@ async function start() {
     if (!response.ok) throw new Error(response.status);
     data = await response.json();
   } catch (e) {
-    $("lede").textContent = "The log couldn't be loaded. Try refreshing the page.";
+    $("lede").textContent = "Data could not be loaded. Refresh the page to try again.";
     $("lede").className = "head__lede error";
     return;
   }
@@ -228,8 +228,7 @@ async function start() {
   const counts = new Map(tally(rows.filter(heard), (r) => r[0]));
   const listened = new Set(rows.filter((r) => r[8] !== null).map((r) => r[0]));
 
-  $("lede").textContent = "Every aircraft the microphones have heard, out of every one that passed within 5 km.";
-  $("updated").textContent = `Updated daily. Today's flights appear tomorrow. Last updated ${
+  $("updated").textContent = `Updated daily with the previous day's data. Last updated ${
     dayName(data.generated, { day: "numeric", month: "long", year: "numeric" })}.`;
 
   drawStats(rows, days, counts, listened);

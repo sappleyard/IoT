@@ -297,8 +297,9 @@ input: retrain and export after changing `features.py`.
 
 ## Website
 
-https://sappleyard.github.io/flight-passes/ is a public table of every pass (one row per
-aircraft within 5 km, with a summary per day), plus an Outlook page with a 10-day forecast.
+https://sappleyard.github.io/flight-passes/ is a public dashboard: the Heard page (heard
+flights against every pass within 5 km, daily totals, highlights, the flight log) and the
+Forecast page (10-day forecast, `outlook.html`).
 It's a static site: `website/site/` holds the pages, and `website/export.py` and
 `website/forecast/` write the data they show.
 
