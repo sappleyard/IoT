@@ -187,7 +187,6 @@ th[aria-sort="descending"] button::after { content: " ↓"; color: var(--gill); 
 .stepper__day { font-weight: 700; min-width: 13rem; text-align: center; }
 .btn.btn--arrow { padding-inline: 0.9em; font-size: 1.1em; line-height: 1; }
 .tag.tag--quiet { color: var(--steel); background: var(--alu); }
-.check { display: flex; align-items: center; gap: 0.4rem; padding-bottom: 0.6em; font-size: var(--step--1); font-weight: 600; white-space: nowrap; }
 .tag {
   display: inline-block;
   margin-left: 0.4rem;
@@ -201,20 +200,63 @@ th[aria-sort="descending"] button::after { content: " ↓"; color: var(--gill); 
 
 /* --- Filters ------------------------------------------------------------------------------- */
 .filters {
-  display: flex; flex-wrap: wrap; align-items: end; gap: 1rem;
-  margin-bottom: 1.5rem;
+  display: flex; flex-wrap: wrap; align-items: end; gap: 1rem 1.25rem;
+  padding: 1.25rem 1.5rem 1.4rem;
+  background: var(--alu);
+  border-radius: 1.5rem;
 }
-.field { display: grid; gap: 0.3rem; font-size: var(--step--1); font-weight: 600; flex: 1 1 10rem; max-width: 22rem; }
-.field input, .field select {
-  width: 100%;
-  font: inherit; font-size: 1rem; font-weight: 500;
+.field { display: grid; gap: 0.45rem; font-size: var(--step--1); font-weight: 600; line-height: 1.2; flex: 1 1 11rem; min-width: 0; }
+.field--search { flex: 2 1 16rem; }
+.field--toggle { flex: 0 0 auto; }
+.field input[type="search"], .field select {
+  box-sizing: border-box;
+  width: 100%; height: 2.75rem;
+  font: inherit; font-size: 1rem; font-weight: 500; line-height: 1;
   color: var(--graphite);
-  background: #fff;
-  border: 1px solid var(--hairline);
+  background-color: #fff;
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 0.6em 1em;
+  padding: 0 1.1em;
+  box-shadow: 0 1px 2px rgb(28 31 35 / .06);
+  transition: border-color .15s, box-shadow .15s;
+  -webkit-appearance: none; appearance: none;
 }
-.count { margin: 0 0 0 auto; padding-bottom: 0.6em; font-size: var(--step--1); color: var(--steel); font-variant-numeric: tabular-nums; }
+.field input[type="search"] {
+  padding-left: 2.6em;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236E757E' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='m11 11 3.5 3.5'/%3E%3C/svg%3E") no-repeat 1em 50%;
+}
+.field input[type="search"]::placeholder { color: var(--steel); }
+.field select {
+  padding-right: 2.6em; cursor: pointer;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%231C1F23' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1.5 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 1.1em center;
+}
+.field input[type="search"]:hover, .field select:hover { border-color: var(--hairline); }
+.field input[type="search"]:focus-visible, .field select:focus-visible {
+  outline: none; border-color: var(--gill); box-shadow: 0 0 0 3px rgb(184 53 94 / .18);
+}
+.toggle {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  height: 2.75rem; padding: 0 1.1em 0 0.45em;
+  font-size: 1rem; font-weight: 600; white-space: nowrap;
+  background: #fff; border-radius: 999px; cursor: pointer;
+  box-shadow: 0 1px 2px rgb(28 31 35 / .06);
+}
+.toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.toggle__track {
+  position: relative; flex: none;
+  width: 2.6rem; height: 1.9rem; border-radius: 999px;
+  background: var(--hairline); transition: background-color .2s var(--ease-out);
+}
+.toggle__track::after {
+  content: ""; position: absolute; top: 0.25rem; left: 0.25rem;
+  width: 1.4rem; height: 1.4rem; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgb(28 31 35 / .25);
+  transition: transform .2s var(--ease-out);
+}
+.toggle input:checked + .toggle__track { background: var(--graphite); }
+.toggle input:checked + .toggle__track::after { transform: translateX(0.7rem); }
+.toggle input:focus-visible + .toggle__track { box-shadow: 0 0 0 3px rgb(184 53 94 / .35); }
+.count { margin: 0.9rem 0 1.25rem 0.25rem; font-size: var(--step--1); color: var(--steel); font-variant-numeric: tabular-nums; }
 .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 2rem; }
 .btn {
   display: inline-flex; align-items: center;

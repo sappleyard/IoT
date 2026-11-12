@@ -69,7 +69,7 @@
       <h2 class="section__title" id="flights-title">Every heard flight</h2>
       <p class="section__note">One row per heard flight; turn off "Heard only" to see every pass within 5 km, heard or not. Times are to the hour: 14:00 means some time between 14:00 and 15:00. Routes are looked up from the callsign, so they show the flight's usual route.</p>
       <div class="filters">
-        <label class="field">Search
+        <label class="field field--search">Search
           <input id="search" type="search" placeholder="Callsign, airline, airport, aircraft" autocomplete="off">
         </label>
         <label class="field">Day
@@ -78,9 +78,12 @@
         <label class="field">Type
           <select id="kind"><option value="">All types</option></select>
         </label>
-        <label class="check"><input id="heard-only" type="checkbox" checked> Heard only</label>
-        <p class="count" id="count" aria-live="polite"></p>
+        <div class="field field--toggle">
+          <span class="field__label" aria-hidden="true">Show</span>
+          <label class="toggle"><input id="heard-only" type="checkbox" role="switch" checked><span class="toggle__track" aria-hidden="true"></span>Heard only</label>
+        </div>
       </div>
+      <p class="count" id="count" aria-live="polite"></p>
       <div class="scroll">
         <table>
           <thead id="flight-head"></thead>
