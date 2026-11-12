@@ -31,7 +31,8 @@
             <tr>
               <th scope="col">Day</th>
               <th scope="col" class="num">Expected passes</th>
-              <th scope="col" class="num">Likely range</th>
+              <th scope="col" class="num">Confidence</th>
+              <th scope="col">Why</th>
               <th scope="col">Wind</th>
               <th scope="col">Weather</th>
             </tr>
@@ -45,7 +46,7 @@
   <footer class="foot">
     <h2 class="foot__title">About this outlook</h2>
     <p>Most days are one of two kinds. When Heathrow lands towards the west, its arrivals pass overhead, about 650 a day; when it lands towards the east, only about 40 do. So the outlook is mostly a forecast of which way Heathrow will land, and Heathrow lands into the wind.</p>
-    <p>It's made each night from the wind forecast at Heathrow: thousands of simulated runs through the next 10 days, each on one member of a weather ensemble, with Heathrow switching direction as often as it has done in similar winds so far. Expected passes is the middle run; the likely range holds 8 in 10 of them. The range is widest when the wind is near the point where Heathrow turns round. Wind and weather are for Heathrow in the daytime.</p>
+    <p>It's made each night from the wind forecast at Heathrow: thousands of simulated runs through the next 10 days, each on one member of a weather ensemble, with Heathrow switching direction as often as it has done in similar winds so far. Each run's day is westerly, easterly or a day Heathrow turns round. Expected passes is the typical count for the most likely of those, and confidence is the share of runs that agree. Confidence is lowest when the wind is near the point where Heathrow turns round, or so far ahead that the weather forecasts disagree. Wind and weather are for Heathrow in the daytime.</p>
     <p id="updated"></p>
   </footer>
 

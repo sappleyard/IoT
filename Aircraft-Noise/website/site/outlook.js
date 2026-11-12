@@ -18,12 +18,12 @@ function draw(forecast) {
   body.replaceChildren(...Array.from({ length: DAYS }, (_, i) => {
     const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
     const f = forecast.get(isoDate(day)) || {};
-    const range = f.low != null && f.high != null ? `${f.low}–${f.high}` : null;
     const cells = [
       [day.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }), "nowrap"],
       [dash(f.passes), "num"],
-      [dash(range), "num nowrap"],
-      [dash(f.wind), ""],
+      [f.confidence != null ? `${f.confidence}%` : dash(null), "num"],
+      [dash(f.reason), ""],
+      [dash(f.wind), "nowrap"],
       [dash(f.weather), ""],
     ];
     const row = document.createElement("tr");

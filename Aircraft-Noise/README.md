@@ -324,9 +324,12 @@ needs a write key for that repo only, and a daily cron job:
     ssh sebpi@sebpi '(crontab -l 2>/dev/null; echo "30 1 * * * \$HOME/aircraft-website/publish.sh >> \$HOME/aircraft-website/publish.log 2>&1") | crontab -'
 
 **Outlook data:** the page fills itself from `data/outlook.json`, shaped like this:
-`{"generated": "2026-11-06", "days": [{"date": "2026-11-06", "passes": 420, "low": 300,
-"high": 560, "wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Any missing day or field
-shows a dash. `site/data/outlook.json` is an empty placeholder; `publish.sh` runs
+`{"generated": "2026-11-06", "days": [{"date": "2026-11-06", "passes": 640, "confidence": 95,
+"reason": "Westerly wind, arrivals overhead", "kind": "west", "low": 300, "high": 660,
+"wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Each simulated day is west, east or
+switch; passes is the typical count of the most likely kind, confidence the share of runs of
+that kind, and reason one of a fixed list in `forecast.py` (low/high, the 10th-90th percentile
+of all runs, stay in the file but aren't shown). Any missing day or field shows a dash. `site/data/outlook.json` is an empty placeholder; `publish.sh` runs
 `forecast/forecast.py` after `export.py` to write the real one into `pages/data/` (rsync leaves
 it alone), and keeps the previous day's if Open-Meteo can't be reached.
 

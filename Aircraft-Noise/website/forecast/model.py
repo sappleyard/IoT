@@ -228,8 +228,9 @@ def day_spread(hist, gamma, means):
     return spread
 
 
-def simulate(params, cov, start_probs, tails, means, spread, hours, runs, rng):
-    """Passes per hour for many runs of the chain: array runs x hours.
+def simulate(params, cov, start_probs, tails, means, spread, hours, runs, rng, states=False):
+    """Passes per hour for many runs of the chain: array runs x hours (and, with states, each
+    run's direction per hour, runs x hours, and which ensemble member it followed).
 
     tails is members x hours of tailwind; each run follows one member, chosen at random, and
     its own draw of the switching parameters, so the spread covers the weather, Heathrow's
@@ -243,6 +244,7 @@ def simulate(params, cov, start_probs, tails, means, spread, hours, runs, rng):
     _, day = np.unique(local_date(hours), return_inverse=True)
     factor = np.exp(rng.normal(size=(runs, day.max() + 1, 2)) * spread)
     out = np.empty((runs, len(hours)))
+    path = np.empty((runs, len(hours)), np.int8)
     for t in range(len(hours)):
         tail = tails[member, t]
         tail = np.where(np.isnan(tail), 0.0, tail)
@@ -252,7 +254,8 @@ def simulate(params, cov, start_probs, tails, means, spread, hours, runs, rng):
         state = np.where(switch, 1 - state, state)
         rate = means[state, hour[t]] * factor[np.arange(runs), day[t], state]
         out[:, t] = rng.poisson(rate)
-    return out
+        path[:, t] = state
+    return (out, path, member) if states else out
 
 
 def daily(hours, per_hour, observed_today=None):
