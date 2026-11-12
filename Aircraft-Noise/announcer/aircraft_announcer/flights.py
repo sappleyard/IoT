@@ -141,16 +141,34 @@ def vrs_csv(path):
     return list(csv.DictReader(io.StringIO(local.read_text(encoding="utf-8-sig"))))
 
 
+# Cities whose airports people tell apart by name. Everywhere else the city is enough (VRS lists
+# small airfields under big cities too, so "more than one airport" can't be worked out from it).
+NAMED_AIRPORT_CITIES = {"London", "Paris", "Milan", "Tokyo", "New York", "Moscow",
+                        "Istanbul", "Washington", "Chicago", "Houston", "São Paulo"}
+# Where the rule below gives an odd name
+SPOKEN_AIRPORTS = {"KJFK": "New York JFK", "KDCA": "Washington National", "EDDF": "Frankfurt"}
+AIRPORT_WORDS = r"\b(International|Intl|Airport|Airfield|Aerodrome|Heliport)\b"
+
+
 def spoken_airport(icao):
-    """How people name the airport: the name when it starts with the city, which tells a city's
-    airports apart ('London Heathrow', 'London Gatwick'), otherwise the city ('Las Vegas', not
-    'Harry Reid International'; 'Kraków', not 'John Paul II International Airport Kraków-Balice')."""
+    """How people name the airport: the city ('Amsterdam', not 'Amsterdam Airport Schiphol';
+    'Las Vegas', not 'Harry Reid International'), with the airport's own name only in cities
+    where people name it ('London Heathrow', 'London Gatwick', 'Paris Charles de Gaulle')."""
+    if icao in SPOKEN_AIRPORTS:
+        return SPOKEN_AIRPORTS[icao]
     for row in vrs_csv(f"airports/schema-01/{icao[0]}/{icao[:2]}.csv"):
         if icao in (row["ICAO"], row["Code"]):
-            name = re.sub(r"\s+(International\s+)?(Airport|Airfield|Aerodrome|Heliport)$", "",
-                          row["Name"].strip())
+            name = re.sub(r"\s+", " ", re.sub(AIRPORT_WORDS, "", row["Name"])).strip(" -")
             city = row["Location"].strip()
-            return name if not city or name.lower().startswith(city.lower()) else city
+            if not city:
+                return name or None
+            if city not in NAMED_AIRPORT_CITIES:
+                return city
+            # "London Heathrow Airport" -> "Heathrow", "Paris-Orly" -> "Orly", and only the
+            # first word of a long name ("Sheremetyevo Alexander S. Pushkin" -> "Sheremetyevo")
+            own = re.sub(re.escape(city) + r"[\s-]*", "", name, flags=re.I).strip(" -").split()
+            own = own[:1] if len(own) > 3 else own
+            return f"{city} {' '.join(own)}" if own else city
     return None
 
 
