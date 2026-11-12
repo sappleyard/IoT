@@ -1,7 +1,7 @@
 """Turn the collected database into labelled training windows for the aircraft classifier.
 
     python3 model/dataset.py            # copy the latest database from the Pi, then build
-    python3 model/dataset.py --local    # use the copy already in analysis/data/noise.db
+    python3 model/dataset.py --local    # use the copy already in model/data/noise.db
 
 Writes model/data/windows.npz (git-ignored). Runs on the Mac (numpy only).
 
@@ -12,7 +12,7 @@ no ADS-B, no time of day.
 
 Labels come from ADS-B, never from the window's own sound (a "loud = aircraft" label would teach
 the model that street traffic is aircraft too). Instead of fixed distances, each aircraft gets an
-expected audibility from analysis/audibility.py: a model, fitted to this house's measurements,
+expected audibility from audibility.py: a model, fitted to this house's measurements,
 of how far its sound stands out from aircraft-free moments given its distance, direction, type
 and the time of day (0.5 = no different from no aircraft, 1 = always louder). For each mic:
   1 (aircraft)    the window ends while the sound of a track with audibility >= AUDIBLE is
@@ -36,16 +36,15 @@ HERE = Path(__file__).resolve().parent
 
 
 def find_sibling(folder, marker):
-    """A sibling project folder (analysis/, announcer/), wherever it sits above this one."""
+    """A sibling project folder (announcer/), wherever it sits above this one."""
     for parent in HERE.parents:
         if (parent / folder / marker).exists():
             return parent / folder
     raise SystemExit(f"Can't find {folder}/{marker} in any folder above {HERE}")
 
 
-sys.path.insert(0, str(find_sibling("analysis", "summary.py")))
 sys.path.insert(0, str(find_sibling("announcer", "aircraft_announcer")))
-from summary import DB, fetch  # noqa: E402  (the same consistent copy summary.py makes)
+from database import DB, fetch  # noqa: E402
 from audibility import (MAX_KM, HELI, load_model, load_positions, make_tracks,  # noqa: E402
                         predict)
 # The window and background code the live announcer uses too, so training matches it exactly.

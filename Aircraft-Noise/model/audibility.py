@@ -1,11 +1,10 @@
 """How audible is an aircraft? Measure it against distance, direction, type and time of day, and
 fit a model that predicts it from ADS-B alone (model/dataset.py uses it to label windows).
 
-    python3 analysis/audibility.py            # copy the latest database from the Pi, then analyse
-    python3 analysis/audibility.py --local    # use the copy already in analysis/data/
+    python3 model/audibility.py            # copy the latest database from the Pi, then fit
+    python3 model/audibility.py --local    # use the copy already in model/data/
 
-Writes analysis/data/audibility.json (the fitted model), figures/5_audibility.png and
-figures/audibility.txt. All git-ignored: the direction terms give away roughly where the house is.
+Writes model/data/audibility.json (the fitted model), audibility.png and audibility.txt. All git-ignored: the direction terms give away roughly where the house is.
 
 Method
   * Every airborne track within MAX_KM (from aircraft_positions, which reaches 60 km, not just the
@@ -36,12 +35,14 @@ import warnings
 import matplotlib
 import numpy as np
 
-from summary import DB, FIGURES, SPEED_OF_SOUND, fetch
+from database import DB, fetch
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-MODEL_FILE = DB.parent / "audibility.json"
+OUT = DB.parent
+MODEL_FILE = OUT / "audibility.json"
+SPEED_OF_SOUND = 343.0   # m/s
 MAX_KM = 20.0        # tracks further than this are treated as inaudible
 GAP_S = 300          # a track splits after 5 min without positions
 ISOLATION, ISO_S = 1.5, 45
@@ -126,7 +127,7 @@ def predict(model, slant, north, east, cat, ts):
 
 def load_model():
     if not MODEL_FILE.exists():
-        raise SystemExit(f"No {MODEL_FILE}: run analysis/audibility.py first")
+        raise SystemExit(f"No {MODEL_FILE}: run model/audibility.py first")
     return json.loads(MODEL_FILE.read_text())
 
 
@@ -204,7 +205,7 @@ def main():
     args = parser.parse_args()
     if not args.local:
         fetch()
-    FIGURES.mkdir(exist_ok=True)
+    OUT.mkdir(exist_ok=True)
     db = sqlite3.connect(DB)
     report = []
 
@@ -266,13 +267,12 @@ def main():
         ax.grid(alpha=0.3)
     axes[0].set_ylabel("audibility score (0.5 = like no aircraft)")
     axes[0].legend(fontsize=7)
-    axes[0].annotate("the 0-1.2 km dots are the approach path south of the house,\nthe 1.2-1.5 km dots the path north of it", (1.05, 0.31), fontsize=7)
-    fig.suptitle("How audible aircraft are, by distance, direction and time of day")
+        fig.suptitle("How audible aircraft are, by distance, direction and time of day")
     fig.tight_layout()
-    fig.savefig(FIGURES / "5_audibility.png", dpi=150)
+    fig.savefig(OUT / "audibility.png", dpi=150)
     MODEL_FILE.write_text(json.dumps(model, indent=1))
-    (FIGURES / "audibility.txt").write_text("\n".join(report) + "\n")
-    print(f"\nModel -> {MODEL_FILE}\nFigure -> {FIGURES / '5_audibility.png'}")
+    (OUT / "audibility.txt").write_text("\n".join(report) + "\n")
+    print(f"\nModel -> {MODEL_FILE}\nFigure -> {OUT / 'audibility.png'}")
 
 
 if __name__ == "__main__":

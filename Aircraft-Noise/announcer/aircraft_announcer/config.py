@@ -47,7 +47,7 @@ SPEED_OF_SOUND = 343.0     # m/s: sound from an aircraft arrives slant / 343 s a
 ARRIVAL_BEFORE_S = 20
 ARRIVAL_AFTER_S = 5
 # Aircraft further away than this aren't the one heard. By day nothing beyond ~3 km stands out
-# from household noise; at night aircraft are heard to ~13 km (analysis/audibility.py).
+# from household noise; at night aircraft are heard to ~13 km (model/audibility.py).
 MATCH_MAX_KM_DAY = 3.0
 MATCH_MAX_KM_NIGHT = 8.0
 NIGHT_HOURS = (23, 7)      # 23:00-07:00, as in the audibility analysis and training

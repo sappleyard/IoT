@@ -12,8 +12,6 @@ r2.json
 *.db-journal
 data-archive/
 # Aircraft-Noise working folders on the Mac: database copy, figures, windows, models, results
-Aircraft-Noise/analysis/data/
-Aircraft-Noise/analysis/figures/
 Aircraft-Noise/model/data/
 
 # --- Generated --------------------------------------------------------------------------------
@@ -34,6 +32,8 @@ dependencies.lock
 # --- Not part of the submission: kept on the Mac only -----------------------------------------
 # Design and training write-ups, Heathrow reference files, Claude Code settings
 Aircraft-Noise/docs/
+# One-off exploratory analysis for the report (figures, propagation fit)
+Aircraft-Noise/analysis/
 .claude/
 CLAUDE.md
 

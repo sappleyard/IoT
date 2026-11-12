@@ -9,11 +9,10 @@ to nine numbers (overall loudness and seven pitch bands) and throws the sound aw
 band levels can't reproduce speech.
 
 ```
- Mic A: living room ──┐  ESP-NOW long-range radio
- (N window, floor 2)  │
+ Mic A ───────────────┐  ESP-NOW long-range radio
                       ▼
- Mic B: bedroom ───► Bridge ESP32 ──USB──► Raspberry Pi ◄── RTL-SDR (ADS-B)
- (S window, floor 3)  (relay only)          ├─ bridge-link: mic levels    ─┐
+ Mic B ────────────► Bridge ESP32 ──USB──► Raspberry Pi ◄── RTL-SDR (ADS-B)
+                      (relay only)          ├─ bridge-link: mic levels    ─┐
                                             ├─ adsb-logger: aircraft       ─┴► noise.db (SQLite)
                                             ├─ announcer: model hears an aircraft ─► Sonos
                                             └─ publish (daily): heard flights, forecast ─► GitHub Pages
@@ -84,9 +83,9 @@ log's last line each night gives the archive's size and the Pi's free space:
 
 **Scaling:** the Pi's storage stays at 30 days however long it runs; each extra mic node adds
 about 2.3 MB a day to the archive; and day files can be fetched by date range without loading the
-rest. **On the Mac**, `summary.py`'s copy of the database (also used by `audibility.py` and
-`model/dataset.py`) puts the pruned days back from R2, downloading each file once into
-`analysis/data/archive/`, so analysis and training still see every day. **If the Pi is lost**,
+rest. **On the Mac**, the training copy of the database (`model/database.py`) puts the pruned days
+back from R2, downloading each file once into `model/data/archive/`, so training still sees
+every day. **If the Pi is lost**,
 `python3 -m aircraft_noise.archive --restore OUT.db` (run from `collection/pi/`) rebuilds a
 database from the archive alone, at most one day behind.
 
@@ -105,7 +104,7 @@ nothing here uses Wrangler or Workers.
 2. R2 → Manage API tokens → Create API token, twice, both "Apply to specific buckets only" →
    `aircraft-noise-archive`:
    `aircraft-noise sebpi` with **Object Read & Write** (for the Pi), and
-   `aircraft-noise mac` with **Object Read** only (for the Mac's analysis copy).
+   `aircraft-noise mac` with **Object Read** only (for the Mac's training copy).
 3. Put each token's keys on its machine, readable by you only:
 
        ssh sebpi@sebpi 'mkdir -p ~/.config/aircraft-noise && umask 077 && cat > ~/.config/aircraft-noise/r2.json'
@@ -121,8 +120,8 @@ nothing here uses Wrangler or Workers.
 ## Files
 
 Grouped by where each part runs. `collection/`, `announcer/` and `website/` run on the Pi, each
-with its own `deploy.sh` that copies just that folder there, so analysis and training code never
-goes to the Pi. Only an exported model (`announcer/models/`) does.
+with its own `deploy.sh` that copies just that folder there, so training code never goes to the
+Pi. Only an exported model (`announcer/models/`) does.
 
 ```
 collection/                 COLLECTING THE DATA (runs on the boards and the Pi)
@@ -163,15 +162,14 @@ website/                    THE PUBLIC SITE (built on the Pi, served by GitHub P
                             model.py (runway direction chain, counts), weather.py (Open-Meteo,
                             Heathrow only), backtest.py (scores it against past days)
   site/                     the static pages (Heard, Forecast)
-analysis/                   EXPLORING THE DATA (Mac)
-  summary.py                report figures + summary from a copy of the Pi's database
-  audibility.py             how audible aircraft are by distance/direction/time; fits the label model
-  data/, figures/           database copy and outputs (git-ignored: they hold the home location)
 model/                      THE AIRCRAFT CLASSIFIER (Mac)
+  database.py               copies the Pi's database, with archived days merged back in
+  audibility.py             how audible aircraft are by distance/direction/time; fits the label model
   dataset.py                labelled 30 s windows from the database copy
   train.py                  trains and compares the detectors (CNN, boosting, threshold);
                             --export NAME writes the CNN to announcer/models/
-  data/                     windows, models, results (git-ignored)
+  data/                     database copy, windows, models, results (git-ignored: they hold the
+                            home location)
 ```
 
 ## Hardware
@@ -181,8 +179,8 @@ Three ESP32 dev boards (ESP32-D0WD-V3, CH340 USB, 4 MB flash), all on mains powe
 | Board | MAC | Role |
 |---|---|---|
 | Bridge | `28:05:A5:34:6B:38` | On the Pi's USB. No mic. |
-| Node A | `28:05:A5:35:B6:50` | Living room, north-facing window, floor 2 |
-| Node B | `28:05:A5:35:E0:EC` | Bedroom, south-facing window, floor 3 |
+| Node A | `28:05:A5:35:B6:50` | Mic A |
+| Node B | `28:05:A5:35:E0:EC` | Mic B |
 
 INMP441 wiring on each node: VDD → 3V3, GND → GND, **L/R → GND**, SCK → GPIO 26, WS → GPIO 25,
 SD → GPIO 33. Keep the wires short. A faulty INMP441 can short the supply: that one crashed the
@@ -224,20 +222,15 @@ Do this with both nodes in their weatherproof cases, so the case is part of the 
 
 Current offsets: A −6, B −6. Side by side the mics agree within 0.1 dB(A) (22 Oct); the absolute −6 comes from a phone app, so it's approximate until the pink-noise calibration.
 
-## Analysis
+## Training labels
 
-`python3 analysis/summary.py` copies the Pi's database (consistently) and writes figures and a
-summary to `analysis/figures/`: levels over time, the daily profile, octave-band spectra of
-aircraft vs quiet, and the sound propagation model (LAmax = L1 - 20 log10(r) - alpha r, fitted
-to the passes the mics heard, background-corrected), with detection rate by distance.
-
-`python3 analysis/audibility.py --local` measures how far each aircraft's sound stands out from
-aircraft-free moments of the same period (an AUC: 0.5 = no different, 1 = always louder) against
-distance, direction, type and day/night, out to 20 km, and fits a model that predicts it from
-ADS-B alone (`analysis/data/audibility.json`). `model/dataset.py` labels windows with it instead
-of fixed distances. Findings so far: by day aircraft beyond ~3 km can't be told from household
-noise by level; at night they stand out to ~13 km; the approach path north of the house is much
-louder than the one south of it, despite being further away.
+`python3 model/audibility.py` copies the Pi's database and measures how far each aircraft's
+sound stands out from aircraft-free moments of the same period (an AUC: 0.5 = no different,
+1 = always louder) against distance, direction, type and day/night, out to 20 km. It fits a
+model that predicts this from ADS-B alone (`model/data/audibility.json`), and
+`model/dataset.py` labels windows with it instead of fixed distances. By day, aircraft beyond
+~3 km can't be told from household noise by level; at night they stand out to ~13 km; and one
+approach path is much louder than the other, despite being further away.
 
 ## Announcer
 
@@ -285,7 +278,7 @@ change, then `announcer/deploy.sh`.
 `ssh sebpi@sebpi touch aircraft-noise-data/ANNOUNCER_PAUSED`, and `rm` it to resume.
 
 **Using a newly trained model:**
-1. `python3 model/dataset.py` (latest data), then
+1. `python3 model/audibility.py` and `python3 model/dataset.py --local` (latest data), then
    `python3 model/train.py --heli-weight 4 --export cnn-2026-12-01` (any name). This writes
    `announcer/models/cnn-2026-12-01.onnx` and `.json` (threshold, feature settings, test scores).
 2. Set `MODEL = "cnn-2026-12-01"` in `announcer/aircraft_announcer/config.py`.
