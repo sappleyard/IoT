@@ -37,7 +37,7 @@ UNIQUE_SURPRISAL_SHARE = 0.7
 UNIQUE_RESCORE_S = 600     # how often the recent flights are re-ranked against the history
 # Models always announced, however common, with their own lead-in (matched within the model
 # name, ignoring case)
-ALWAYS_UNIQUE = {"a380": "G.O.A.T."}
+ALWAYS_UNIQUE = {"a380": "G.O.A.T.", "747": "G.O.A.T."}
 HOME_AIRPORT = "London Heathrow"   # the end of a route that doesn't make it unusual
 
 # --- Matching a heard sound to an aircraft ----------------------------------------------------
