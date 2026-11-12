@@ -155,7 +155,10 @@ announcer/                  ANNOUNCING HEARD AIRCRAFT (runs on the Pi)
 website/                    THE PUBLIC SITE (built on the Pi, served by GitHub Pages)
   deploy.sh                 copy this folder to the Pi (~/aircraft-website)
   export.py                 passes -> site/data/passes.json: the only data that leaves the house
-  publish.sh                daily on the Pi: export, then push to github.com/sappleyard/flight-passes
+  publish.sh                daily on the Pi: export, forecast, then push to github.com/sappleyard/flight-passes
+  forecast/                 the Outlook's 10-day forecast: forecast.py (writes outlook.json),
+                            model.py (runway direction chain, counts), weather.py (Open-Meteo,
+                            Heathrow only), backtest.py (scores it against past days)
   site/                     the static pages (Passes, Outlook), styled after axolokl.co.uk
 analysis/                   EXPLORING THE DATA (Mac)
   summary.py                report figures + summary from a copy of the Pi's database
@@ -279,9 +282,9 @@ input: retrain and export after changing `features.py`.
 ## Website
 
 https://sappleyard.github.io/flight-passes/ is a public table of every pass (one row per
-aircraft within 5 km, with a summary per day), plus an Outlook page that is ready for a 10-day
-forecast. It's a static site: `website/site/` holds the pages, and `website/export.py` writes
-the data they show.
+aircraft within 5 km, with a summary per day), plus an Outlook page with a 10-day forecast.
+It's a static site: `website/site/` holds the pages, and `website/export.py` and
+`website/forecast/` write the data they show.
 
 **What's published** is limited on purpose. Flight tracks are public, so anything that ties a
 flight to a precise time or distance could help someone find the house. `export.py` writes only
@@ -302,7 +305,32 @@ needs a write key for that repo only, and a daily cron job:
 **Outlook data:** the page fills itself from `data/outlook.json`, shaped like this:
 `{"generated": "2026-11-06", "days": [{"date": "2026-11-06", "passes": 420, "low": 300,
 "high": 560, "wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Any missing day or field
-shows a dash. Until a forecast job writes this file, `site/data/outlook.json` has no days.
+shows a dash. `site/data/outlook.json` is an empty placeholder; `publish.sh` runs
+`forecast/forecast.py` after `export.py` to write the real one into `pages/data/` (rsync leaves
+it alone), and keeps the previous day's if Open-Meteo can't be reached.
+
+**The forecast** (`forecast/`) is mostly a forecast of Heathrow's runway direction, because
+days are bimodal: westerly operations bring the arrival stream overhead, heading west (about
+650 passes a day); easterly operations bring about 40. Each past daytime hour (06-22 local,
+logger running) is labelled west (10+ westbound passes), east (2 or fewer) or unknown. A
+two-state Markov chain switches hourly with a chance that is a logistic function of the
+tailwind a westerly landing would have (wind along runway 27, averaged over the next 6 hours,
+which fits far better than the hour's own wind: Heathrow plans changes on the forecast). It's
+fitted by EM so night hours are filled in, with Gaussian priors from Heathrow's rule (go
+easterly above a few knots of tailwind, prefer westerly), since there are only a handful of
+switches. Counts are the mean passes per local hour in each direction, plus a day-to-day
+spread. 4000 runs then go through the next 10 days, each on one of the 51 ECMWF ensemble
+members and its own draw of the fitted parameters; `passes` is the median, `low`/`high` the
+10th/90th percentiles. Today's passes so far are added to today's runs. Wind and weather are
+Heathrow's daytime vector-mean wind and most significant WMO code, from Open-Meteo's
+deterministic forecast. All weather requests use Heathrow's coordinates, never the house's.
+
+`forecast/backtest.py` (Mac or Pi, `--db` for a database copy) remakes each past day's 01:00
+forecast from hours before then and wind as forecast at the time (Open-Meteo's previous runs,
+so leads 0-6 only, on 3 models instead of the ensemble) and compares it with persistence and
+climatology. On 22 Oct-11 Nov: mean absolute error over leads 0-6 was 103 passes a day,
+against 280 for persistence and 251 for climatology (47 same-day, 65 next-day); about 2 in 3
+actual days fell inside low-high, not 8 in 10, so the ranges are somewhat too narrow.
 
 ## Next steps
 
