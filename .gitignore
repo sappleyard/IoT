@@ -31,6 +31,12 @@ sdkconfig.old
 managed_components/
 dependencies.lock
 
+# --- Not part of the submission: kept on the Mac only -----------------------------------------
+# Design and training write-ups, Heathrow reference files, Claude Code settings
+Aircraft-Noise/docs/
+.claude/
+CLAUDE.md
+
 # --- Clutter ----------------------------------------------------------------------------------
 .DS_Store
 # Conflict copies made by iCloud Desktop sync ("sdkconfig 2")

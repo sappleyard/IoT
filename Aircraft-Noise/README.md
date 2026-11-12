@@ -172,9 +172,6 @@ model/                      THE AIRCRAFT CLASSIFIER (Mac)
   train.py                  trains and compares the detectors (CNN, boosting, threshold);
                             --export NAME writes the CNN to announcer/models/
   data/                     windows, models, results (git-ignored)
-docs/                       design summary, training summaries (snapshots from the build)
-  reference/                Heathrow's runway alternation programme, departure routes map
-data-archive/               old databases (git-ignored)
 ```
 
 ## Hardware
