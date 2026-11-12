@@ -40,9 +40,9 @@ UNSURE = 60                     # below this confidence (%) the reason says why 
 SPREAD_KT = 4.0                 # ensemble members disagreeing by more than this (sd of the
                                 # daytime tailwind, knots) means the weather itself is unsure
 REASONS = {"west": "Westerly wind, arrivals overhead",
-           "east": "Easterly wind, arrivals elsewhere",
+           "east": "Easterly wind, arrivals over Windsor",
            "switch": "Wind direction change mid day",
-           "edge": "Wind near the turning point, could go either way",
+           "edge": "Marginal wind, runway direction uncertain",
            "far": "Far ahead, forecast uncertain"}
 SEED = 1                        # same inputs, same numbers: reruns don't jitter the site
 
