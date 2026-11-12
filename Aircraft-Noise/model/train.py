@@ -7,7 +7,7 @@
     python3 model/train.py --hours 7-23     # daytime only (checks it isn't learning the clock)
     python3 model/train.py --cv --heli-weight 5   # helicopter windows count 5x in training
                                                   # (results_cv_heli5.txt, beside the default's)
-    python3 model/train.py --heli-weight 4 --export cnn-heli4-2026-11-03
+    python3 model/train.py --heli-weight 4 --export cnn-heli4-2026-11-05
                                             # train, then export the CNN for the announcer
 
 Needs torch, numpy and scikit-learn (Mac venv). Writes model/data/model.pt and results.txt.

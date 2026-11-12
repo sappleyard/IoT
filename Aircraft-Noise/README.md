@@ -1,7 +1,8 @@
 # Aircraft Noise
 
 Measure how loud aircraft are at home, with two microphones and the Pi's ADS-B receiver
-saying which plane was where, and announce each aircraft the mics hear on the Sonos.
+saying which plane was where. The Pi announces unusual aircraft the mics hear on the Sonos,
+and publishes the heard flights and a 10-day pass forecast to a public site.
 
 **Privacy: no audio is recorded or stored.** Each mic node boils every second of sound down
 to nine numbers (overall loudness and seven pitch bands) and throws the sound away. One-second
@@ -14,7 +15,8 @@ band levels can't reproduce speech.
  Mic B: bedroom ───► Bridge ESP32 ──USB──► Raspberry Pi ◄── RTL-SDR (ADS-B)
  (S window, floor 3)  (relay only)          ├─ bridge-link: mic levels    ─┐
                                             ├─ adsb-logger: aircraft       ─┴► noise.db (SQLite)
-                                            └─ announcer: model hears an aircraft ─► Sonos
+                                            ├─ announcer: model hears an aircraft ─► Sonos
+                                            └─ publish (daily): heard flights, forecast ─► GitHub Pages
 ```
 
 ## What's measured
@@ -118,9 +120,9 @@ nothing here uses Wrangler or Workers.
 
 ## Files
 
-Grouped by where each part runs. `collection/` and `announcer/` run on the hardware, each with
-its own `deploy.sh` that copies just that folder to the Pi, so analysis and training code never
-goes there. Only an exported model (`announcer/models/`) does.
+Grouped by where each part runs. `collection/`, `announcer/` and `website/` run on the Pi, each
+with its own `deploy.sh` that copies just that folder there, so analysis and training code never
+goes to the Pi. Only an exported model (`announcer/models/`) does.
 
 ```
 collection/                 COLLECTING THE DATA (runs on the boards and the Pi)
@@ -149,6 +151,7 @@ announcer/                  ANNOUNCING HEARD AIRCRAFT (runs on the Pi)
     features.py             model input from the levels; model/dataset.py uses the same code
     detector.py             runs the chosen model on each mic's latest 30 s
     flights.py              which aircraft was heard; route, airline, model lookups (cached)
+    uniqueness.py           how unusual a heard aircraft is (decides what gets announced)
     speech.py               the sentence, spoken by Piper (offline)
     sonos.py                plays it over whatever the Sonos is playing
     __main__.py             service: detect -> match -> look up -> announce, every second
@@ -156,10 +159,10 @@ website/                    THE PUBLIC SITE (built on the Pi, served by GitHub P
   deploy.sh                 copy this folder to the Pi (~/aircraft-website)
   export.py                 passes -> site/data/passes.json: the only data that leaves the house
   publish.sh                daily on the Pi: export, forecast, then push to github.com/sappleyard/flight-passes
-  forecast/                 the Outlook's 10-day forecast: forecast.py (writes outlook.json),
+  forecast/                 the 10-day forecast: forecast.py (writes outlook.json),
                             model.py (runway direction chain, counts), weather.py (Open-Meteo,
                             Heathrow only), backtest.py (scores it against past days)
-  site/                     the static pages (Passes, Outlook), styled after axolokl.co.uk
+  site/                     the static pages (Heard, Forecast)
 analysis/                   EXPLORING THE DATA (Mac)
   summary.py                report figures + summary from a copy of the Pi's database
   audibility.py             how audible aircraft are by distance/direction/time; fits the label model
@@ -169,7 +172,7 @@ model/                      THE AIRCRAFT CLASSIFIER (Mac)
   train.py                  trains and compares the detectors (CNN, boosting, threshold);
                             --export NAME writes the CNN to announcer/models/
   data/                     windows, models, results (git-ignored)
-docs/                       design summary, training summaries
+docs/                       design summary, training summaries (snapshots from the build)
   reference/                Heathrow's runway alternation programme, departure routes map
 data-archive/               old databases (git-ignored)
 ```
@@ -305,18 +308,23 @@ It's a static site: `website/site/` holds the pages, and `website/export.py` and
 
 **What's published** is limited on purpose. Flight tracks are public, so anything that ties a
 flight to a precise time or distance could help someone find the house. `export.py` writes only
-the date, the **hour**, callsign, airline, route, aircraft and type. It never writes distance,
-altitude, speed, heading, position or exact times. It publishes complete days only, and within
-an hour sorts rows by callsign, not by time. Routes and aircraft come from the announcer's
-cached lookups (`flights.py`). The page is about **heard** flights: each pass is marked heard
-if the announcer's `heard` log has that aircraft during it (unknown before the log starts, 3 Nov
-2026), and counts, top lists and the flight table use heard flights (a "Heard only" switch shows
-every pass). **Highlights**: up to 8 heard flights per day, then every A380 and 747 ("G.O.A.T."), the ones the announcer's uniqueness
-score rates most unusual (announced, or at least the 90th percentile), with the same fields plus
-a short label from the reason ("First recorded", "Rare", "First in 2 weeks"); arrows step through days.
+the date, the **hour**, callsign, airline, route, aircraft, type and whether it was heard. It
+never writes distance, altitude, speed, heading, position or exact times. It publishes complete
+days only, and within an hour sorts rows by callsign, not by time. Routes and aircraft come from
+the announcer's cached lookups (`flights.py`).
+
+**Heard page.** A pass is heard if the announcer's `heard` log has that aircraft during it
+(unknown before the log starts, 3 Nov 2026; earlier days are shown as training data). Stats, daily
+totals (latest 10, expandable), the most-heard lists and the flight log count heard flights; the
+log's "Heard only" switch, on by default, can be turned off to show every pass. **Highlights** step back through days: up to 8 heard
+flights a day that the uniqueness score rates most unusual (announced, or at least the 90th
+percentile), then every A380 and 747, each with a label ("First recorded", "Rare", "First in
+7 days", "G.O.A.T.").
 
 **Publishing** runs on the Pi: `website/deploy.sh` copies the code; `publish.sh` rebuilds
-`passes.json` into `~/aircraft-website/pages` (a clone of the site repo) and pushes it. It
+`passes.json` and `outlook.json` into `~/aircraft-website/pages` (a clone of the site repo),
+stamps script and stylesheet links with their checksum so browsers never mix old code with new
+data, and pushes it. It
 needs a write key for that repo only, and a daily cron job:
 
     ssh sebpi@sebpi 'ssh-keygen -t ed25519 -N "" -f ~/.ssh/aircraft_pages -C "sebpi flight-passes"'
@@ -324,15 +332,12 @@ needs a write key for that repo only, and a daily cron job:
     ssh sebpi@sebpi 'GIT_SSH_COMMAND="ssh -i ~/.ssh/aircraft_pages" git clone git@github.com:sappleyard/flight-passes.git aircraft-website/pages && git -C aircraft-website/pages config user.name sappleyard && git -C aircraft-website/pages config user.email sappleyard@users.noreply.github.com'
     ssh sebpi@sebpi '(crontab -l 2>/dev/null; echo "30 1 * * * \$HOME/aircraft-website/publish.sh >> \$HOME/aircraft-website/publish.log 2>&1") | crontab -'
 
-**Outlook data:** the page fills itself from `data/outlook.json`, shaped like this:
+**Forecast page** (`outlook.html`, filled from `data/outlook.json`):
 `{"generated": "2026-11-06", "days": [{"date": "2026-11-06", "passes": 640, "confidence": 95,
 "reason": "Westerly wind, arrivals overhead", "kind": "west", "low": 300, "high": 660,
-"wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Each simulated day is west, east or
-switch; passes is the typical count of the most likely kind, confidence the share of runs of
-that kind, and reason one of a fixed list in `forecast.py` (low/high, the 10th-90th percentile
-of all runs, stay in the file but aren't shown). Any missing day or field shows a dash. `site/data/outlook.json` is an empty placeholder; `publish.sh` runs
-`forecast/forecast.py` after `export.py` to write the real one into `pages/data/` (rsync leaves
-it alone), and keeps the previous day's if Open-Meteo can't be reached.
+"wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Any missing day or field shows a dash.
+`publish.sh` runs `forecast/forecast.py` after `export.py`, and keeps the previous day's file if
+Open-Meteo can't be reached.
 
 **The forecast** (`forecast/`) is mostly a forecast of Heathrow's runway direction, because
 days are bimodal: westerly operations bring the arrival stream overhead, heading west (about
@@ -345,19 +350,24 @@ fitted by EM so night hours are filled in, with Gaussian priors from Heathrow's 
 easterly above a few knots of tailwind, prefer westerly), since there are only a handful of
 switches. Counts are the mean passes per local hour in each direction, plus a day-to-day
 spread. 4000 runs then go through the next 10 days, each on one of the 51 ECMWF ensemble
-members and its own draw of the fitted parameters; `passes` is the median, `low`/`high` the
-10th/90th percentiles. Today's passes so far are added to today's runs. Wind and weather are
-Heathrow's daytime vector-mean wind and most significant WMO code, from Open-Meteo's
-deterministic forecast. All weather requests use Heathrow's coordinates, never the house's.
+members and its own draw of the fitted parameters; today's passes so far are added to today's
+runs. Each run's day is west, east or a switch day; `passes` is the median of the most likely
+kind, `confidence` the share of runs of that kind, and `reason` one of a fixed list in
+`forecast.py` (`REASONS`; low confidence reads as "Marginal wind" or, with a wide ensemble
+spread, "Far ahead"). `low`/`high` (10th-90th percentile of all runs) stay in the file but
+aren't shown. Wind and weather are Heathrow's daytime vector-mean wind and most significant WMO
+code, from Open-Meteo's deterministic forecast. All weather requests use Heathrow's
+coordinates, never the house's.
 
 `forecast/backtest.py` (Mac or Pi, `--db` for a database copy) remakes each past day's 01:00
 forecast from hours before then and wind as forecast at the time (Open-Meteo's previous runs,
 so leads 0-6 only, on 3 models instead of the ensemble) and compares it with persistence and
 climatology. On 22 Oct-11 Nov: mean absolute error over leads 0-6 was 103 passes a day,
-against 280 for persistence and 251 for climatology (47 same-day, 65 next-day); about 2 in 3
-actual days fell inside low-high, not 8 in 10, so the ranges are somewhat too narrow.
+against 280 for persistence and 251 for climatology (47 same-day, 65 next-day).
 
-## Next steps
+## Status
 
-See the design summary (`docs/`): v2 (announce only unique aircraft, scored from the `heard`
-history) is done (see Announcer); next, the publishing API and dashboard.
+The setup is final for the coursework (due 10 Dec 2026): collection, the archive, the announcer
+(v2, unique aircraft only), the site and the forecast all run unattended on the Pi. Speaking is
+paused while `ANNOUNCER_PAUSED` exists; heard aircraft are logged either way. What's left is the
+report and video.

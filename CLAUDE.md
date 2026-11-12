@@ -20,9 +20,11 @@ Home IoT projects. Each project lives in its own subfolder.
   `aircraft-noise-archive` as gzipped CSVs and the Pi keeps 30 days; `analysis/summary.py`'s
   fetch merges pruned days back; keep this bucket and its keys separate from any other
   project's Cloudflare resources), `announcer/` (deployed separately: runs an exported model on the live
-  levels, names heard aircraft on the Sonos), `website/` (public site at
-  sappleyard.github.io/flight-passes, data from `website/export.py` on the Pi: publishes only date,
-  hour, callsign, airline, route, aircraft, type; never distances, altitudes or exact times),
+  levels, announces unusual heard aircraft on the Sonos, `uniqueness.py` scores them), `website/` (public site at
+  sappleyard.github.io/flight-passes, built daily on the Pi by `website/publish.sh`: `export.py`
+  publishes only date, hour, callsign, airline, route, aircraft, type, heard; never distances,
+  altitudes or exact times; `forecast/` writes the 10-day forecast, querying Open-Meteo at
+  Heathrow only, never the house),
   then Mac-only `analysis/` and `model/` (classifier
   training: never deployed; `train.py --export` writes models into `announcer/models/`), `docs/`
   and the git-ignored `data-archive/`. `announcer/aircraft_announcer/features.py` is the one copy

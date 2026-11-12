@@ -7,7 +7,7 @@ pages="$here/pages"     # a clone of the site's repo
 export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aircraft_pages -o IdentitiesOnly=yes"
 
 git -C "$pages" pull --quiet --ff-only
-# The generated data files are left alone: site/data/ only holds empty placeholders.
+# The generated data files in pages/data/ are left alone.
 rsync -a --delete --exclude .git --exclude data/passes.json --exclude data/outlook.json \
   "$here/site/" "$pages/"
 # Name each script and stylesheet by its contents in the pages, so a browser never runs a cached
