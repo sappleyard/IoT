@@ -70,7 +70,9 @@ function drawDays(rows, days, counts, listened) {
   const helis = new Map(tally(rows.filter((r) => heard(r) && r[7] === "Helicopter"), (r) => r[0]));
   const passes = new Map(tally(rows, (r) => r[0]));
   const most = Math.max(...counts.values(), 1);
-  $("days").replaceChildren(...days.slice().reverse().map(([d, hours]) => {
+  // the first day is left out when partial: it's only the hours after collection started
+  const shown = days.filter(([, hours], i) => i > 0 || hours >= FULL_DAY_HOURS);
+  $("days").replaceChildren(...shown.reverse().map(([d, hours]) => {
     const n = counts.get(d) || 0;
     const listening = listened.has(d);
     const link = el("a", { href: "#flights", textContent: shortDay(d) });
@@ -79,7 +81,7 @@ function drawDays(rows, days, counts, listened) {
       name.append(el("span", { className: "tag", textContent: `${Math.round(hours)} h logged` }));
     }
     if (!listening) {
-      name.append(el("span", { className: "tag tag--quiet", textContent: "not listening yet" }));
+      name.append(el("span", { className: "tag tag--quiet", textContent: "training day" }));
     }
     const row = el("tr", {},
       name,
