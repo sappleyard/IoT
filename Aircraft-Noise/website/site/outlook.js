@@ -1,4 +1,4 @@
-// The Outlook page: the next 10 days, filled from data/outlook.json where it has them. The
+// The Forecast page: the next 10 days, filled from data/outlook.json where it has them. The
 // forecast job only has to write that file, as the website README describes.
 
 const DAYS = 10;

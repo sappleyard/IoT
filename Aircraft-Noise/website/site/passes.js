@@ -1,4 +1,4 @@
-// The Passes page: everything is drawn in the browser from data/passes.json (see export.py).
+// The Heard page: everything is drawn in the browser from data/passes.json (see export.py).
 // A row is [date, time, callsign, airline, origin, destination, aircraft, type, heard], heard
 // being 1 (the microphones heard it), 0 (they didn't) or null (before they were listening).
 // The page is about heard flights: they're what's counted and listed, unless "Heard only" is off.
@@ -15,7 +15,7 @@ const COLUMNS = [                // heading, sort key
   ["To", (r) => r[5]],
   ["Aircraft", (r) => r[6]],
   ["Type", (r) => r[7]],
-  ["Heard", (r) => (r[8] === 1 ? "Heard" : r[8] === 0 ? "No" : "")],
+  ["Heard", (r) => (r[8] === 1 ? "Yes" : r[8] === 0 ? "No" : "")],
 ];
 const heard = (r) => r[8] === 1;
 
@@ -60,17 +60,13 @@ function drawStats(rows, days, counts, listened) {
       `of ${number(judged)} passes within 5 km`],
     ["Helicopters", number(helis), `${(100 * helis / (heardRows.length || 1)).toFixed(1)}% of heard flights`],
   ];
-  $("stats").replaceChildren(...stats.map(([label, value, note]) =>
-    el("div", { className: "stat" },
-      el("dt", { textContent: label }),
-      el("dd", { textContent: value }),
-      el("span", { className: "stat__note", textContent: note }))));
+  $("stats").replaceChildren(...stats.flatMap(([label, value, note]) =>
+    [el("dt", { textContent: label }), el("dd", { textContent: `${value} (${note})` })]));
 }
 
 function drawDays(rows, days, counts, listened) {
   const helis = new Map(tally(rows.filter((r) => heard(r) && r[7] === "Helicopter"), (r) => r[0]));
   const passes = new Map(tally(rows, (r) => r[0]));
-  const most = Math.max(...counts.values(), 1);
   // the first day is left out when partial: it's only the hours after collection started
   const shown = days.filter(([, hours], i) => i > 0 || hours >= FULL_DAY_HOURS);
   $("days").replaceChildren(...shown.reverse().map(([d, hours]) => {
@@ -79,18 +75,16 @@ function drawDays(rows, days, counts, listened) {
     const link = el("a", { href: "#flights", textContent: shortDay(d) });
     const name = el("td", {}, link);
     if (hours < FULL_DAY_HOURS) {
-      name.append(el("span", { className: "tag", textContent: `Partial · ${Math.round(hours)} h` }));
+      name.append(` (partial, ${Math.round(hours)} h)`);
     }
     if (!listening) {
-      name.append(el("span", { className: "tag tag--quiet", textContent: "Training data" }));
+      name.append(" (training data)");
     }
     const row = el("tr", {},
       name,
       cell(listening ? number(n) : "", "num"),
       el("td", { className: "num", textContent: number(passes.get(d) || 0) }),
-      cell(listening ? number(helis.get(d) || 0) : "", "num"),
-      el("td", { className: "bar-cell" },
-        el("span", { className: "bar", style: `width:${100 * n / most}%` })));
+      cell(listening ? number(helis.get(d) || 0) : "", "num"));
     row.addEventListener("click", () => { chooseDay(d); $("flights").scrollIntoView(); });
     link.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); chooseDay(d); $("flights").scrollIntoView(); });
     return row;
@@ -126,7 +120,7 @@ function drawHighlights() {
     ([hour, callsign, airline, from, to, aircraft, why]) => el("tr", {},
       cell(hour, "nowrap"), cell(callsign, "callsign"), cell(airline),
       cell(from && to ? `${from} → ${to}` : ""), cell(aircraft),
-      el("td", { className: "nowrap" }, el("span", { className: "tag tag--why", textContent: why }))))
+      cell(why)))
     : [el("tr", {}, el("td", { colSpan: 6, className: "empty",
       textContent: "No highlights for this day." }))]));
   $("highlights-older").disabled = at === 0;
@@ -203,8 +197,7 @@ function drawFlights() {
     el("tr", {},
       cell(shortDay(r[0]), "nowrap"), cell(r[1], "num nowrap"), cell(r[2], "callsign"),
       cell(r[3]), cell(r[4]), cell(r[5]), cell(r[6]), cell(r[7]),
-      heard(r) ? el("td", {}, el("span", { className: "tag tag--why", textContent: "Heard" }))
-        : cell(r[8] === 0 ? "No" : "", "empty"))));
+      cell(COLUMNS[8][1](r)))));
   if (!state.shown.length) {
     $("flight-rows").replaceChildren(el("tr", {}, el("td", {
       colSpan: COLUMNS.length, className: "empty", textContent: "No flights match.",
@@ -232,7 +225,6 @@ async function start() {
     data = await response.json();
   } catch (e) {
     $("lede").textContent = "Data could not be loaded. Refresh the page to try again.";
-    $("lede").className = "head__lede error";
     return;
   }
   const rows = data.passes;

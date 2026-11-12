@@ -10,13 +10,6 @@ git -C "$pages" pull --quiet --ff-only
 # The generated data files in pages/data/ are left alone.
 rsync -a --delete --exclude .git --exclude data/passes.json --exclude data/outlook.json \
   "$here/site/" "$pages/"
-# Name each script and stylesheet by its contents in the pages, so a browser never runs a cached
-# old script against new data (GitHub Pages lets browsers keep files for 10 minutes).
-for f in "$pages"/*.js "$pages"/*.css; do
-    name="$(basename "$f")"
-    v="$(md5sum "$f" | cut -c1-8)"
-    sed -i "s|\"$name\"|\"$name?v=$v\"|g" "$pages"/*.html
-done
 nice -n 19 python3 "$here/export.py" "$pages/data/passes.json"
 # The 10-day outlook needs Open-Meteo: if that fails, keep yesterday's and publish the passes.
 nice -n 19 python3 "$here/forecast/forecast.py" "$pages/data/outlook.json" || echo "Forecast failed"

@@ -25,9 +25,6 @@ ENSEMBLE = "https://ensemble-api.open-meteo.com/v1/ensemble"
 PREVIOUS = "https://previous-runs-api.open-meteo.com/v1/forecast"
 ENSEMBLE_MODEL = "ecmwf_ifs025"     # 51 members, hourly out past 10 days
 ANALYSIS_MODEL = "ecmwf_ifs025"     # the same model for the past, so fit and forecast agree
-# Models whose earlier runs (previous_day1..7) Open-Meteo keeps: the backtest's stand-in ensemble
-BACKTEST_MODELS = ("ecmwf_ifs025", "gfs_seamless", "gem_seamless")
-MAX_PREVIOUS_DAY = 7
 
 WMO_WORDS = {0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Cloudy", 45: "Fog",
              48: "Fog", 51: "Drizzle", 53: "Drizzle", 55: "Drizzle", 56: "Freezing drizzle",
@@ -103,27 +100,6 @@ def deterministic(days):
                hourly="wind_speed_10m,wind_direction_10m,weather_code")["hourly"]
     return (np.array(data["time"], dtype=np.int64), _array(data["wind_speed_10m"]),
             _array(data["wind_direction_10m"]), _array(data["weather_code"]))
-
-
-def previous_runs(start_ts, end_ts):
-    """Forecasts as they stood 1..7 days earlier, for an honest backtest.
-
-    Returns (hours, {model: array lead_day x hours}) where row n-1 holds previous_day{n}: the
-    forecast for that hour from a run made n days before it.
-    """
-    names = ",".join(f"wind_speed_10m_previous_day{n},wind_direction_10m_previous_day{n}"
-                     for n in range(1, MAX_PREVIOUS_DAY + 1))
-    out = {}
-    for model in BACKTEST_MODELS:
-        data = get(PREVIOUS, models=model, hourly=names,
-                   start_date=time.strftime("%Y-%m-%d", time.gmtime(start_ts)),
-                   end_date=time.strftime("%Y-%m-%d", time.gmtime(end_ts)))["hourly"]
-        ts = np.array(data["time"], dtype=np.int64)
-        out[model] = np.array([tailwind(_array(data[f"wind_speed_10m_previous_day{n}"]),
-                                        _array(data[f"wind_direction_10m_previous_day{n}"]))
-                               for n in range(1, MAX_PREVIOUS_DAY + 1)])
-    keep = (ts >= start_ts) & (ts < end_ts)
-    return ts[keep], {m: a[:, keep] for m, a in out.items()}
 
 
 def summary(speed_kmh, direction_deg, codes):

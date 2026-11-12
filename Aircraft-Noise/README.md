@@ -160,8 +160,8 @@ website/                    THE PUBLIC SITE (built on the Pi, served by GitHub P
   publish.sh                daily on the Pi: export, forecast, then push to github.com/sappleyard/flight-passes
   forecast/                 the 10-day forecast: forecast.py (writes outlook.json),
                             model.py (runway direction chain, counts), weather.py (Open-Meteo,
-                            Heathrow only), backtest.py (scores it against past days)
-  site/                     the static pages (Heard, Forecast)
+                            Heathrow only)
+  site/                     the two plain HTML pages (Heard, Forecast) and their scripts
 model/                      THE AIRCRAFT CLASSIFIER (Mac)
   database.py               copies the Pi's database, with archived days merged back in
   audibility.py             how audible aircraft are by distance/direction/time; fits the label model
@@ -290,7 +290,7 @@ input: retrain and export after changing `features.py`.
 
 ## Website
 
-https://sappleyard.github.io/flight-passes/ is a public dashboard: the Heard page (heard
+https://sappleyard.github.io/flight-passes/ is a public, plain-HTML page of the Pi's data: the Heard page (heard
 flights against every pass within 5 km, daily totals, highlights, the flight log) and the
 Forecast page (10-day forecast, `outlook.html`).
 It's a static site: `website/site/` holds the pages, and `website/export.py` and
@@ -312,9 +312,8 @@ percentile), then every A380 and 747, each with a label ("First recorded", "Rare
 7 days", "G.O.A.T.").
 
 **Publishing** runs on the Pi: `website/deploy.sh` copies the code; `publish.sh` rebuilds
-`passes.json` and `outlook.json` into `~/aircraft-website/pages` (a clone of the site repo),
-stamps script and stylesheet links with their checksum so browsers never mix old code with new
-data, and pushes it. It
+`passes.json` and `outlook.json` into `~/aircraft-website/pages` (a clone of the site repo) and
+pushes it. It
 needs a write key for that repo only, and a daily cron job:
 
     ssh sebpi@sebpi 'ssh-keygen -t ed25519 -N "" -f ~/.ssh/aircraft_pages -C "sebpi flight-passes"'
@@ -348,12 +347,6 @@ spread, "Far ahead"). `low`/`high` (10th-90th percentile of all runs) stay in th
 aren't shown. Wind and weather are Heathrow's daytime vector-mean wind and most significant WMO
 code, from Open-Meteo's deterministic forecast. All weather requests use Heathrow's
 coordinates, never the house's.
-
-`forecast/backtest.py` (Mac or Pi, `--db` for a database copy) remakes each past day's 01:00
-forecast from hours before then and wind as forecast at the time (Open-Meteo's previous runs,
-so leads 0-6 only, on 3 models instead of the ensemble) and compares it with persistence and
-climatology. On 22 Oct-11 Nov: mean absolute error over leads 0-6 was 103 passes a day,
-against 280 for persistence and 251 for climatology (47 same-day, 65 next-day).
 
 ## Status
 
