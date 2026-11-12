@@ -228,12 +228,7 @@ async function start() {
   const counts = new Map(tally(rows.filter(heard), (r) => r[0]));
   const listened = new Set(rows.filter((r) => r[8] !== null).map((r) => r[0]));
 
-  const last = days[days.length - 1][0];
-  const firstHeard = [...listened][0] || last;
-  $("lede").textContent = `Every aircraft the microphones have heard, from ${
-    dayName(firstHeard, { day: "numeric", month: "long" })} to ${
-    dayName(last, { day: "numeric", month: "long", year: "numeric" })}, out of every aircraft that came within 5 km since ${
-    dayName(days[0][0], { day: "numeric", month: "long" })}.`;
+  $("lede").textContent = "Every aircraft the microphones have heard, out of every one that passed within 5 km.";
   $("updated").textContent = `Updated daily. Today's flights appear tomorrow. Last updated ${
     dayName(data.generated, { day: "numeric", month: "long", year: "numeric" })}.`;
 
