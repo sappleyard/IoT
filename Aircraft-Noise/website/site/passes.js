@@ -4,6 +4,7 @@
 // The page is about heard flights: they're what's counted and listed, unless "Heard only" is off.
 
 const PAGE_SIZE = 100;
+const DAYS_SHOWN = 10;          // days in the daily totals before "Show all"
 const FULL_DAY_HOURS = 23.5;     // a day with less logging than this is marked as partial
 const COLUMNS = [                // heading, sort key
   ["Date", (r) => r[0] + r[1]],
@@ -94,6 +95,17 @@ function drawDays(rows, days, counts, listened) {
     link.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); chooseDay(d); $("flights").scrollIntoView(); });
     return row;
   }));
+  // The latest DAYS_SHOWN days, the rest behind a button
+  const rowsShown = [...$("days").children];
+  const more = $("days-more");
+  more.hidden = rowsShown.length <= DAYS_SHOWN;
+  const collapse = (collapsed) => {
+    rowsShown.forEach((row, i) => { row.hidden = collapsed && i >= DAYS_SHOWN; });
+    more.textContent = collapsed ? `Show all ${rowsShown.length} days` : "Show fewer";
+    more.setAttribute("aria-expanded", String(!collapsed));
+  };
+  more.addEventListener("click", () => collapse(more.getAttribute("aria-expanded") === "true"));
+  collapse(true);
 }
 
 function drawTop(id, entries) {

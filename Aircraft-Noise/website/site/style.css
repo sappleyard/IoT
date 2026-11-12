@@ -268,6 +268,10 @@ th[aria-sort="descending"] button::after { content: " ↓"; color: var(--gill); 
   transition: background-color .2s;
 }
 .btn:hover { background: var(--gill); }
+.btn.btn--quiet { background: var(--alu); color: var(--graphite); }
+.btn.btn--quiet:hover { background: var(--hairline); }
+.more { display: flex; justify-content: center; margin-top: 1.5rem; }
+.more:has(> [hidden]) { display: none; }
 .btn[disabled] { background: var(--alu); color: var(--steel); cursor: default; }
 .pager__at { font-size: var(--step--1); color: var(--steel); font-variant-numeric: tabular-nums; }
 
