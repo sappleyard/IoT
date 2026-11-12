@@ -25,6 +25,19 @@
 
     <dl class="stats" id="stats" aria-live="polite"></dl>
 
+    <section class="section" aria-labelledby="highlights-title" id="highlights" hidden>
+      <h2 class="section__title" id="highlights-title">Highlights</h2>
+      <p class="section__note" id="highlights-note"></p>
+      <div class="scroll">
+        <table class="highlights">
+          <thead>
+            <tr><th scope="col">Hour</th><th scope="col">Callsign</th><th scope="col">Airline</th><th scope="col">Route</th><th scope="col">Aircraft</th><th scope="col">Why</th></tr>
+          </thead>
+          <tbody id="highlight-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="section" aria-labelledby="by-day">
       <h2 class="section__title" id="by-day">Passes per day</h2>
       <p class="section__note">Choose a day to see its flights.</p>

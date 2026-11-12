@@ -200,7 +200,8 @@ class Uniqueness:
     def score(self, d, ts=None):
         """Add a heard flight to the history and say how unusual it is: a dict with uniqueness
         (bits), percentile (0-100 among recent heard flights), unique (announce it?), reason
-        (for the log) and lead_in (said before the sentence, or None)."""
+        (for the log), lead_in (said before the sentence, or None) and phrase (those words
+        whether or not it is unique)."""
         ts = time.time() if ts is None else ts
         f = features(d)
         seen = self.add(ts, f)
@@ -225,9 +226,11 @@ class Uniqueness:
             before, last = seen[why]
             reason = (f"{why} {f[why]} ({before} before"
                       + (f", last {(ts - last) / 86400:.0f} days ago)" if last else ")"))
+        phrase = lead_in(why, d, seen[why], ts) if why else None
         return {"uniqueness": round(score, 2), "percentile": round(percentile, 1),
                 "unique": unique, "reason": reason,
-                "lead_in": lead_in(why, d, seen[why], ts) if unique else None}
+                "lead_in": phrase if unique else None,
+                "phrase": phrase}     # the same words for any flight (the site's highlights)
 
 
 NUMBERS = "zero one two three four five six seven eight nine ten eleven twelve".split()

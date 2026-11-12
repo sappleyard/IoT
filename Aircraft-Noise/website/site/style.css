@@ -182,6 +182,7 @@ th[aria-sort="descending"] button::after { content: " ↓"; color: var(--gill); 
 .days a:hover { color: var(--gill); }
 .bar-cell { width: 45%; min-width: 7rem; }
 .bar { display: block; height: 0.7rem; min-width: 1px; background: var(--graphite); border-radius: 999px; }
+.tag.tag--why { margin-left: 0; }
 .tag {
   display: inline-block;
   margin-left: 0.4rem;

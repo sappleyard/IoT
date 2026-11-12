@@ -6,6 +6,8 @@ and nothing else. Left out on purpose, because each could help locate the house 
 ADS-B history: distances, altitudes, speeds, headings, positions and exact times.
   - times are floored to the hour, and rows within an hour are sorted by callsign, not time
   - only complete days are written (nothing from today)
+Highlights are the most unusual flights the mics heard on the last complete day, scored by the
+announcer's uniqueness model (uniqueness.py) against the heard flights before each one.
 
     export.py OUT.json
 """
@@ -20,10 +22,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / "aircraft-announcer"))
 from aircraft_announcer import flights                               # noqa: E402
+from aircraft_announcer.uniqueness import Uniqueness                 # noqa: E402
 from aircraft_announcer.config import ANNOUNCER_DB, NOISE_DB         # noqa: E402
 
 TIME_STEP_S = 3600       # published times are to the hour
 LOOKUP_PAUSE_S = 0.5     # between network requests: adsbdb is a free service
+HIGHLIGHTS = 8           # at most this many flights
+HIGHLIGHT_PERCENTILE = 90    # beyond the announced few, flights at least this unusual
 KINDS = {"A1": "Light", "A2": "Small", "A3": "Large", "A4": "Large", "A5": "Heavy",
          "A7": "Helicopter"}
 
@@ -43,6 +48,37 @@ def covered_hours(spans, day):
     start = datetime.combine(day, datetime.min.time()).timestamp()
     end = datetime.combine(day + timedelta(days=1), datetime.min.time()).timestamp()
     return sum(max(0, min(b, end) - max(a, start)) for a, b in spans) / 3600
+
+
+def highlights(day):
+    """The last complete day's most unusual heard flights, most unusual first: each
+    [hour, callsign, airline, origin, destination, aircraft, why]. Every heard flight is scored
+    in time order against the ones before it, as the announcer scores it live."""
+    db = sqlite3.connect(f"file:{ANNOUNCER_DB}?mode=ro", uri=True, timeout=30)
+    db.row_factory = sqlite3.Row
+    rows = db.execute("SELECT ts, callsign, airline, origin, destination, aircraft_model, "
+                      "category FROM heard ORDER BY ts").fetchall()
+    db.close()
+    start = datetime.combine(day, datetime.min.time()).timestamp()
+    end = datetime.combine(day + timedelta(days=1), datetime.min.time()).timestamp()
+    history, picked, seen = Uniqueness(), [], set()
+    for row in rows:
+        if row["ts"] >= end:
+            break
+        score = history.score(dict(row), row["ts"])
+        callsign = (row["callsign"] or "").strip()
+        # a flight heard twice (both mics, or two windows) is one highlight
+        if row["ts"] < start or not score["phrase"] or callsign in seen:
+            continue
+        if score["unique"] or score["percentile"] >= HIGHLIGHT_PERCENTILE:
+            seen.add(callsign)
+            when = datetime.fromtimestamp(row["ts"] - row["ts"] % TIME_STEP_S)
+            picked.append((score["unique"], score["percentile"], [
+                when.strftime("%H:%M"), callsign, row["airline"] or "", row["origin"] or "",
+                row["destination"] or "", row["aircraft_model"] or "",
+                score["phrase"].rstrip(":")]))
+    picked.sort(key=lambda p: (p[0], p[1]), reverse=True)
+    return [p[2] for p in picked[:HIGHLIGHTS]]
 
 
 def main(out):
@@ -78,8 +114,16 @@ def main(out):
         days.append([day.isoformat(), round(covered_hours(spans, day), 1)])
         day += timedelta(days=1)
 
+    last = date.today() - timedelta(days=1)
+    try:
+        best = highlights(last)
+    except sqlite3.Error as e:      # no announcer history: the site just leaves them out
+        print(f"No highlights: {e}")
+        best = []
     Path(out).write_text(json.dumps({"generated": date.today().isoformat(), "days": days,
-                                     "passes": rows}, ensure_ascii=False,
+                                     "passes": rows,
+                                     "highlights": {"date": last.isoformat(), "flights": best}},
+                                    ensure_ascii=False,
                                     separators=(",", ":")))
     print(f"Wrote {len(rows)} passes over {len(days)} days to {out}")
 
