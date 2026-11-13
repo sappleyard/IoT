@@ -4,24 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>10-day forecast</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <p><a href="./">Heard</a> | <a href="outlook.html">Forecast</a></p>
+  <header>
+    <div class="bar">
+      <a class="title" href="./">Aircraft heard overhead</a>
+      <nav><a href="./">Heard</a><a href="outlook.html" aria-current="page">Forecast</a></nav>
+    </div>
+  </header>
 
-  <h1>10-day forecast</h1>
-  <p>Expected daily aircraft passes within 5 km, modelled from the Heathrow weather forecast.</p>
+  <main>
+    <h1>10-day forecast</h1>
+    <p class="lede">Expected daily aircraft passes within 5 km, modelled from the Heathrow weather forecast.</p>
 
-  <p id="status">Forecast currently unavailable.</p>
-  <table border="1" cellpadding="3">
-    <thead><tr><th>Date</th><th>Expected passes</th><th>Confidence</th><th>Reason</th><th>Wind</th><th>Weather</th></tr></thead>
-    <tbody id="outlook"></tbody>
-  </table>
+    <section class="panel" style="margin-top:20px">
+      <p class="muted" id="status">Forecast currently unavailable.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Date</th><th class="num">Expected passes</th><th class="num">Confidence</th><th>Reason</th><th>Wind</th><th>Weather</th></tr></thead>
+          <tbody id="outlook"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
-  <h2>Methodology</h2>
-  <p>Runway direction: daily passes depend mainly on which way Heathrow is landing. On westerly operations the arrival stream passes overhead (about 650 passes a day); on easterly operations about 40 do. Heathrow lands into the wind, so the forecast is driven by the wind.</p>
-  <p>Model: a Markov chain of runway direction, with switching probabilities fitted to the observed history against forecast tailwind. It is simulated 4,000 times over 10 days using the ECMWF ensemble forecast for Heathrow, and is rerun each night.</p>
-  <p>Columns: each simulated day is classed as westerly, easterly or a mid-day runway change. Expected passes is the typical count for the most likely class; confidence is the share of simulations in that class. Wind and weather are daytime conditions at Heathrow.</p>
-  <p id="updated"></p>
+  <footer>
+    <h2>Methodology</h2>
+    <p>Runway direction: daily passes depend mainly on which way Heathrow is landing. On westerly operations the arrival stream passes overhead (about 650 passes a day); on easterly operations about 40 do. Heathrow lands into the wind, so the forecast is driven by the wind.</p>
+    <p>Model: a Markov chain of runway direction, with switching probabilities fitted to the observed history against forecast tailwind. It is simulated 4,000 times over 10 days using the ECMWF ensemble forecast for Heathrow, and is rerun each night.</p>
+    <p>Columns: each simulated day is classed as westerly, easterly or a mid-day runway change. Expected passes is the typical count for the most likely class; confidence is the share of simulations in that class. Wind and weather are daytime conditions at Heathrow.</p>
+    <p id="updated"></p>
+  </footer>
 
   <script src="outlook.js"></script>
 </body>

@@ -4,69 +4,92 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Aircraft heard overhead</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <p><a href="./">Heard</a> | <a href="outlook.html">Forecast</a></p>
+  <header>
+    <div class="bar">
+      <a class="title" href="./">Aircraft heard overhead</a>
+      <nav><a href="./" aria-current="page">Heard</a><a href="outlook.html">Forecast</a></nav>
+    </div>
+  </header>
 
-  <h1>Aircraft heard overhead</h1>
-  <p id="lede">Aircraft detected by the microphones, compared with all ADS-B passes within 5 km.</p>
+  <main>
+    <h1>Aircraft heard overhead</h1>
+    <p class="lede" id="lede">Aircraft detected by the microphones, compared with all ADS-B passes within 5 km.</p>
 
-  <dl id="stats"></dl>
+    <dl class="stats" id="stats"></dl>
 
-  <div id="highlights" hidden>
-    <h2>Highlights</h2>
-    <p>The day's least common heard flights, ranked by uniqueness against all previously heard flights.</p>
-    <p>
-      <button id="highlights-older" type="button" aria-label="Previous day">&lt;</button>
-      <span id="highlights-day"></span>
-      <button id="highlights-newer" type="button" aria-label="Next day">&gt;</button>
-    </p>
-    <table border="1" cellpadding="3">
-      <thead><tr><th>Hour</th><th>Callsign</th><th>Airline</th><th>Route</th><th>Aircraft</th><th>Uniqueness</th></tr></thead>
-      <tbody id="highlight-rows"></tbody>
-    </table>
-  </div>
+    <div class="grid">
+      <section class="panel" id="highlights" hidden>
+        <h2>Highlights</h2>
+        <p class="muted">The day's least common heard flights, ranked by uniqueness against all previously heard flights.</p>
+        <div class="stepper">
+          <button id="highlights-older" type="button" aria-label="Previous day">&larr;</button>
+          <span id="highlights-day"></span>
+          <button id="highlights-newer" type="button" aria-label="Next day">&rarr;</button>
+        </div>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Hour</th><th>Callsign</th><th>Airline</th><th>Route</th><th>Aircraft</th><th>Uniqueness</th></tr></thead>
+            <tbody id="highlight-rows"></tbody>
+          </table>
+        </div>
+      </section>
 
-  <h2>Daily totals</h2>
-  <p>Heard flights and all passes within 5 km. Select a day to filter the flight log.</p>
-  <table border="1" cellpadding="3">
-    <thead><tr><th>Day</th><th>Heard</th><th>Passes</th><th>Helicopters heard</th></tr></thead>
-    <tbody id="days"></tbody>
-  </table>
-  <p><button id="days-more" type="button" aria-controls="days" hidden></button></p>
+      <section class="panel">
+        <h2>Daily totals</h2>
+        <p class="muted">Select a day to filter the flight log.</p>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Day</th><th class="num">Heard</th><th class="num">Passes</th><th class="num">Helicopters</th></tr></thead>
+            <tbody id="days"></tbody>
+          </table>
+        </div>
+        <p><button id="days-more" type="button" aria-controls="days" hidden></button></p>
+      </section>
+    </div>
 
-  <h2>Most frequently heard</h2>
-  <h3>Airlines</h3>
-  <table border="1" cellpadding="3"><tbody id="top-airlines"></tbody></table>
-  <h3>Aircraft</h3>
-  <table border="1" cellpadding="3"><tbody id="top-aircraft"></tbody></table>
-  <h3>Routes</h3>
-  <table border="1" cellpadding="3"><tbody id="top-routes"></tbody></table>
+    <section class="panel">
+      <h2>Most frequently heard</h2>
+      <div class="top3">
+        <div><h3>Airlines</h3><table><tbody id="top-airlines"></tbody></table></div>
+        <div><h3>Aircraft</h3><table><tbody id="top-aircraft"></tbody></table></div>
+        <div><h3>Routes</h3><table><tbody id="top-routes"></tbody></table></div>
+      </div>
+    </section>
 
-  <h2 id="flights">Flight log</h2>
-  <p>One row per heard flight. Untick "Heard only" to include all passes within 5 km. Times are rounded down to the hour. Routes are the scheduled route for the callsign.</p>
-  <p>
-    <label>Search <input id="search" type="search" placeholder="Callsign, airline, airport, aircraft" autocomplete="off"></label>
-    <label>Day <select id="day"><option value="">All days</option></select></label>
-    <label>Type <select id="kind"><option value="">All types</option></select></label>
-    <label><input id="heard-only" type="checkbox" checked> Heard only</label>
-  </p>
-  <p id="count"></p>
-  <table border="1" cellpadding="3">
-    <thead id="flight-head"></thead>
-    <tbody id="flight-rows"></tbody>
-  </table>
-  <p>
-    <button id="prev" type="button">Newer</button>
-    <span id="at"></span>
-    <button id="next" type="button">Older</button>
-  </p>
+    <section class="panel" id="flights">
+      <h2>Flight log</h2>
+      <p class="muted">One row per heard flight. Untick "Heard only" to include all passes within 5 km. Times are rounded down to the hour; routes are the scheduled route for the callsign.</p>
+      <div class="controls">
+        <input id="search" type="search" placeholder="Callsign, airline, airport, aircraft" autocomplete="off" aria-label="Search">
+        <label>Day <select id="day"><option value="">All days</option></select></label>
+        <label>Type <select id="kind"><option value="">All types</option></select></label>
+        <label><input id="heard-only" type="checkbox" checked> Heard only</label>
+        <span class="muted" id="count"></span>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead id="flight-head"></thead>
+          <tbody id="flight-rows"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button id="prev" type="button">Newer</button>
+        <span id="at" class="muted"></span>
+        <button id="next" type="button">Older</button>
+      </div>
+    </section>
+  </main>
 
-  <h2>Methodology</h2>
-  <p>Detection: two microphones log sound levels once per second; no audio is recorded. A classifier trained on these levels flags aircraft noise, and each detection is matched to an aircraft using ADS-B position data from a local receiver.</p>
-  <p>Passes: a pass is any aircraft within 5 km slant range (horizontal distance and altitude combined), whether heard or not. Days before 3 November were used to collect training data, so they have passes but no detections.</p>
-  <p>Sources: airline, route and aircraft details from <a href="https://github.com/vradarserver/standing-data">VRS standing data</a> and <a href="https://www.adsbdb.com/">adsbdb</a>.</p>
-  <p id="updated"></p>
+  <footer>
+    <h2>Methodology</h2>
+    <p>Detection: two microphones log sound levels once per second; no audio is recorded. A classifier trained on these levels flags aircraft noise, and each detection is matched to an aircraft using ADS-B position data from a local receiver.</p>
+    <p>Passes: a pass is any aircraft within 5 km slant range (horizontal distance and altitude combined), whether heard or not. Days before 3 November were used to collect training data, so they have passes but no detections.</p>
+    <p>Sources: airline, route and aircraft details from <a href="https://github.com/vradarserver/standing-data">VRS standing data</a> and <a href="https://www.adsbdb.com/">adsbdb</a>.</p>
+    <p id="updated"></p>
+  </footer>
 
   <script src="passes.js"></script>
 </body>

@@ -60,8 +60,9 @@ function drawStats(rows, days, counts, listened) {
       `of ${number(judged)} passes within 5 km`],
     ["Helicopters", number(helis), `${(100 * helis / (heardRows.length || 1)).toFixed(1)}% of heard flights`],
   ];
-  $("stats").replaceChildren(...stats.flatMap(([label, value, note]) =>
-    [el("dt", { textContent: label }), el("dd", { textContent: `${value} (${note})` })]));
+  $("stats").replaceChildren(...stats.map(([label, value, note]) =>
+    el("div", { className: "stat" }, el("dt", { textContent: label }),
+      el("dd", { textContent: value }), el("dd", { className: "note", textContent: note }))));
 }
 
 function drawDays(rows, days, counts, listened) {
@@ -75,10 +76,10 @@ function drawDays(rows, days, counts, listened) {
     const link = el("a", { href: "#flights", textContent: shortDay(d) });
     const name = el("td", {}, link);
     if (hours < FULL_DAY_HOURS) {
-      name.append(` (partial, ${Math.round(hours)} h)`);
+      name.append(el("span", { className: "tag", textContent: `partial, ${Math.round(hours)} h` }));
     }
     if (!listening) {
-      name.append(" (training data)");
+      name.append(el("span", { className: "tag", textContent: "training data" }));
     }
     const row = el("tr", {},
       name,
