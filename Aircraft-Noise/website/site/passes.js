@@ -117,7 +117,7 @@ function drawHighlights() {
   const { days, at } = highlightState;
   const { date, flights } = days[at];
   $("highlights-day").textContent = dayName(date, { weekday: "long", day: "numeric", month: "long" });
-  $("highlight-rows").replaceChildren(...(flights.length ? flights.map(
+  $("highlight-rows").replaceChildren(...(flights.length ? [...flights].sort((a, b) => a[0].localeCompare(b[0])).map(
     ([hour, callsign, airline, from, to, aircraft, why]) => el("tr", {},
       cell(hour, "nowrap"), cell(callsign, "callsign"), cell(airline),
       cell(from && to ? `${from} → ${to}` : ""), cell(aircraft),
