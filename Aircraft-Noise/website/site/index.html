@@ -22,7 +22,17 @@
 
     <div class="grid">
       <section class="panel" id="highlights" hidden>
-        <h2>Highlights</h2>
+        <div class="panel-head">
+          <h2>Highlights</h2>
+          <span class="info" tabindex="0" aria-label="What the labels mean">i
+            <span class="tip" role="tooltip">
+              <b>First recorded</b> never heard before.<br>
+              <b>First in N days</b> its rarest feature (airline, aircraft or route) was last heard N days ago.<br>
+              <b>Rare</b> heard in the last few days, but still uncommon overall.<br>
+              <b>G.O.A.T.</b> every Airbus A380 and Boeing 747, however common.
+            </span>
+          </span>
+        </div>
         <p class="muted">The day's least common heard flights, ranked by uniqueness against all previously heard flights.</p>
         <div class="stepper">
           <button id="highlights-older" type="button" aria-label="Previous day">&larr;</button>
