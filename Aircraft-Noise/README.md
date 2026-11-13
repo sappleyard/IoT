@@ -163,7 +163,7 @@ website/                    THE PUBLIC SITE (built on the Pi, served by GitHub P
   forecast/                 the 10-day forecast: forecast.py (writes outlook.json),
                             model.py (runway direction chain, counts), weather.py (Open-Meteo,
                             Heathrow only)
-  site/                     the two plain HTML pages (Heard, Forecast) and their scripts
+  site/                     the two pages (Heard, Forecast), their scripts and style.css
 model/                      THE AIRCRAFT CLASSIFIER (Mac)
   database.py               copies the Pi's database, with archived days merged back in
   audibility.py             how audible aircraft are by distance/direction/time; fits the label model
@@ -297,7 +297,7 @@ input: retrain and export after changing `features.py`.
 
 ## Website
 
-https://sappleyard.github.io/flight-passes/ is a public, plain-HTML page of the Pi's data: the Heard page (heard
+https://sappleyard.github.io/flight-passes/ is a public dashboard of the Pi's data: the Heard page (heard
 flights against every pass within 5 km, daily totals, highlights, the flight log) and the
 Forecast page (10-day forecast, `outlook.html`).
 It's a static site: `website/site/` holds the pages, and `website/export.py` and
