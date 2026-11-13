@@ -43,8 +43,12 @@ class ClipServer:
             def log_message(self, *args):
                 pass
 
+        class Server(http.server.ThreadingHTTPServer):
+            def handle_error(self, request, client_address):
+                pass    # the Sonos often drops a connection mid-file, then fetches it again
+
         handler = functools.partial(Handler, directory=str(directory))
-        self.server = http.server.ThreadingHTTPServer(("0.0.0.0", port), handler)
+        self.server = Server(("0.0.0.0", port), handler)
         self.port = port
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
