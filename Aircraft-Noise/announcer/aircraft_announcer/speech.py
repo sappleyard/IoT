@@ -1,7 +1,7 @@
 """The spoken sentence, and turning it into a WAV file with Piper (offline, on the Pi).
 
     "British Airways 2 7 1, from Frankfurt-am-Main to London Heathrow, at 3,100 feet,
-     an Airbus Ay three twenty."
+     an Airbus Eh three twenty."
 
 Any part that isn't known is left out; with nothing but a callsign it says that alone.
 """
@@ -32,13 +32,13 @@ def digit_by_digit(digits):
 
 
 def spoken_model(model):
-    """Aircraft model as people say it: A320 -> 'Ay three twenty', A300 -> 'Ay three hundred',
+    """Aircraft model as people say it: A320 -> 'Eh three twenty', A300 -> 'Eh three hundred',
     E190 -> 'E one ninety', 787 -> 'seven eight seven', AW139 -> 'A W one three nine'."""
     def say(m):
         letters, digits = m.group(1), m.group(2)
         if (letters, digits[0]) in (("A", "2"), ("A", "3"), ("E", "1")):    # Airbus, Embraer
             rest = "hundred" if digits[1:] == "00" else two_digits(int(digits[1:]))
-            letters = "Ay" if letters == "A" else letters    # a lone "A" is read as "uh"
+            letters = "Eh" if letters == "A" else letters    # Piper says "Eh" as "ay"; a lone "A" is "uh"
             return f"{letters} {ONES[int(digits[0])]} {rest}"
         return " ".join([*letters, digit_by_digit(digits)])     # Boeing, helicopters
     model = re.sub(r"(\d)([A-Za-z])", r"\1 \2", model)    # "737MAX" -> "737 MAX"
