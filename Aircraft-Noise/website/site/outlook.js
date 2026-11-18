@@ -5,6 +5,7 @@
 
 const DAYS = 10;
 const FULL_DAY_HOURS = 23.5;     // as on the Heard page: less logging than this isn't scored
+const PAST_SHOWN = 10;           // past days listed before "Show all"
 const CORRECT = 75;              // a day is correct at this accuracy (%) or better
 const KINDS = { west: "Westerly", east: "Easterly", switch: "Runway change" };
 
@@ -86,12 +87,24 @@ function drawPast(history, passes) {
     return row;
   }));
 
+  // The latest PAST_SHOWN days, the rest behind a button (the averages use every day)
+  const rows = [...document.getElementById("past-rows").children];
+  const more = document.getElementById("past-more");
+  more.hidden = rows.length <= PAST_SHOWN;
+  const collapse = (collapsed) => {
+    rows.forEach((row, i) => { row.hidden = collapsed && i >= PAST_SHOWN; });
+    more.textContent = collapsed ? `Show all ${rows.length} days` : "Show fewer";
+    more.setAttribute("aria-expanded", String(!collapsed));
+  };
+  more.addEventListener("click", () => collapse(more.getAttribute("aria-expanded") === "true"));
+  collapse(true);
+
   const correct = scored.filter((h) => h.accuracy >= CORRECT).length;
   const mean = Math.round(scored.reduce((sum, h) => sum + h.accuracy, 0) / scored.length);
   const stats = [
     ["Forecast correct", `${Math.round(100 * correct / scored.length)}%`,
-      `${correct} of ${scored.length} days at ${CORRECT}% accuracy or better`],
-    ["Average accuracy", `${mean}%`, "day-ahead forecast vs actual passes"],
+      `${correct} of ${scored.length} days at least ${CORRECT}% accurate`],
+    ["Average accuracy", `${mean}%`, `how close it was, averaged over ${scored.length} days`],
   ];
   const box = document.getElementById("accuracy");
   box.replaceChildren(...stats.map(([label, value, note]) => {
