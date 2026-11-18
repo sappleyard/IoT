@@ -4,7 +4,7 @@
 set -euo pipefail
 
 host=sebpi@sebpi
-# pages/ is the Pi's clone of the site repo, so --delete must leave it alone.
-rsync -az --delete --exclude __pycache__ --exclude .DS_Store --exclude pages --exclude preview \
+# pages/ (the Pi's clone of the site repo) and publish.log live only on the Pi: --delete must leave them.
+rsync -az --delete --exclude __pycache__ --exclude .DS_Store --exclude pages --exclude preview --exclude publish.log \
   "$(dirname "$0")/" "$host:aircraft-website/"
 echo "Copied to $host:aircraft-website"
