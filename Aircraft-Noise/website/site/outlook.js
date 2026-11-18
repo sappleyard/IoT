@@ -6,7 +6,8 @@
 const DAYS = 10;
 const FULL_DAY_HOURS = 23.5;     // as on the Heard page: less logging than this isn't scored
 const PAST_SHOWN = 10;           // past days listed before "Show all"
-const CORRECT = 80;              // a day is correct at this accuracy (%) or better
+const CORRECT = 75;              // a day is correct at this accuracy (%) or better (the one
+                                 // place it's set: the page's text is filled from it)
 const KINDS = { west: "Westerly", east: "Easterly", switch: "Runway change" };
 
 function isoDate(d) {
@@ -131,6 +132,7 @@ function drawPast(history, passes) {
 }
 
 async function start() {
+  document.getElementById("cutoff").textContent = `${CORRECT}%`;
   const data = (await getJSON("data/outlook.json")) || { days: [] };
   draw(new Map(data.days.map((d) => [d.date, d])));
   if (data.days.length) {
