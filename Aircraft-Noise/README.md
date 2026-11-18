@@ -184,6 +184,8 @@ Three ESP32 dev boards (ESP32-D0WD-V3, CH340 USB, 4 MB flash), all on mains powe
 | Node A | `28:05:A5:35:B6:50` | Mic A |
 | Node B | `28:05:A5:35:E0:EC` | Mic B |
 
+Mics A and B are on the same floor.
+
 INMP441 wiring on each node: VDD → 3V3, GND → GND, **L/R → GND**, SCK → GPIO 26, WS → GPIO 25,
 SD → GPIO 33. Keep the wires short. A faulty INMP441 can short the supply: that one crashed the
 Pi's USB controller, so try a new or suspect mic on a phone charger first.
