@@ -330,7 +330,12 @@ needs a write key for that repo only, and a daily cron job:
 
 **Forecast page** (`outlook.html`, filled from `data/outlook.json`):
 `{"generated": "2026-11-06", "days": [{"date": "2026-11-06", "passes": 640, "confidence": 95,
-"reason": "Westerly wind, arrivals overhead", "kind": "west", "wind": "SW 18 km/h", "weather": "Showers"}, ...]}`. Any missing day or field shows a dash.
+"reason": "Westerly wind, arrivals overhead", "kind": "west", "wind": "SW 18 km/h", "weather": "Showers"}, ...],
+"history": [{"date": "2026-11-05", "passes": 627, "confidence": 84, "kind": "west"}, ...]}`. Any missing day or field shows a dash.
+`history` is each past date's forecast issued the day before, carried over from the previous
+file. "Show past days" lists them against the actual passes (from `passes.json`, full days only)
+with an accuracy (smaller count / larger count), and the page shows the share of days at 75%
+accuracy or better and the mean accuracy.
 `publish.sh` runs `forecast/forecast.py` after `export.py`, and keeps the previous day's file if
 Open-Meteo can't be reached.
 

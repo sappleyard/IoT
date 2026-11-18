@@ -36,8 +36,23 @@ header .bar {
 }
 
 header .title { font-weight: 600; color: var(--text); text-decoration: none; }
-header nav a { margin-left: 20px; color: var(--muted); text-decoration: none; }
-header nav a[aria-current] { color: var(--accent); font-weight: 600; }
+header nav { display: flex; gap: 4px; align-self: stretch; }
+header nav a {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  border-top: 3px solid transparent;
+}
+header nav a:hover { color: var(--text); background: var(--bg); }
+header nav a[aria-current] {
+  color: var(--accent);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+  background: #eef3fe;
+}
 
 main { padding-top: 24px; padding-bottom: 24px; }
 
@@ -123,6 +138,8 @@ th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--line
 th { color: var(--muted); font-weight: 600; }
 td.num, th.num { text-align: right; }
 td.empty { color: var(--muted); }
+td.good { color: #1a7f37; }
+td.bad { color: #cf222e; }
 tbody tr:hover { background: #f8f9fb; }
 th button { all: unset; cursor: pointer; }
 th[aria-sort] button { color: var(--accent); }

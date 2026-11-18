@@ -18,7 +18,23 @@
     <h1>10-day forecast</h1>
     <p class="lede">Expected daily aircraft passes within 5 km, modelled from the Heathrow weather forecast.</p>
 
+    <dl class="stats" id="accuracy" hidden></dl>
+
     <section class="panel" style="margin-top:20px">
+      <div class="controls">
+        <button id="toggle-past" type="button" aria-expanded="false" aria-controls="past" hidden>Show past days</button>
+      </div>
+      <div id="past" hidden>
+        <h2>Past days</h2>
+        <p class="muted">The forecast issued the day before, against the passes that happened.</p>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Date</th><th class="num">Expected passes</th><th class="num">Actual passes</th><th class="num">Accuracy</th><th class="num">Confidence</th><th>Forecast</th></tr></thead>
+            <tbody id="past-rows"></tbody>
+          </table>
+        </div>
+        <h2 style="margin-top:20px">Next 10 days</h2>
+      </div>
       <p class="muted" id="status">Forecast currently unavailable.</p>
       <div class="scroll">
         <table>
@@ -34,6 +50,7 @@
     <p>Runway direction: daily passes depend mainly on which way Heathrow is landing. On westerly operations the arrival stream passes overhead (about 650 passes a day); on easterly operations about 40 do. Heathrow lands into the wind, so the forecast is driven by the wind.</p>
     <p>Model: a Markov chain of runway direction, with switching probabilities fitted to the observed history against forecast tailwind. It is simulated 4,000 times over 10 days using the ECMWF ensemble forecast for Heathrow, and is rerun each night.</p>
     <p>Columns: each simulated day is classed as westerly, easterly or a mid-day runway change. Expected passes is the typical count for the most likely class; confidence is the share of simulations in that class. Wind and weather are daytime conditions at Heathrow.</p>
+    <p>Accuracy: each past day compares the forecast issued the day before with the passes logged that day (full days only). Accuracy is the smaller of the two counts as a share of the larger, so 100% is exact. A day counts as correct when its accuracy is at least 75%.</p>
     <p id="updated"></p>
   </footer>
 

@@ -1,7 +1,12 @@
 // The Forecast page: the next 10 days, filled from data/outlook.json where it has them. The
-// forecast job only has to write that file, as the website README describes.
+// forecast job only has to write that file, as the website README describes. Past days pair
+// outlook.json's history (each day's forecast from the day before) with the passes that
+// happened, counted from data/passes.json.
 
 const DAYS = 10;
+const FULL_DAY_HOURS = 23.5;     // as on the Heard page: less logging than this isn't scored
+const CORRECT = 75;              // a day is correct at this accuracy (%) or better
+const KINDS = { west: "Westerly", east: "Easterly", switch: "Runway change" };
 
 function isoDate(d) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"),
@@ -37,20 +42,93 @@ function draw(forecast) {
   }));
 }
 
-async function start() {
-  let data = { days: [] };
+const shortDay = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en-GB",
+  { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
+
+// Accuracy (%): the smaller count as a share of the larger, 100 when both are 0.
+const accuracy = (expected, actual) =>
+  Math.round(100 * (Math.min(expected, actual) / Math.max(expected, actual, 1)));
+
+async function getJSON(url) {
   try {
-    const response = await fetch("data/outlook.json", { cache: "no-cache" });
-    if (response.ok) data = await response.json();
+    const response = await fetch(url, { cache: "no-cache" });
+    if (response.ok) return await response.json();
   } catch (e) {
-    // No forecast to show: the dashes stand.
+    // missing: the caller's default stands
   }
+  return null;
+}
+
+function drawPast(history, passes) {
+  const full = new Set(passes.days.filter(([, hours]) => hours >= FULL_DAY_HOURS).map(([d]) => d));
+  const actual = new Map();
+  for (const r of passes.passes) actual.set(r[0], (actual.get(r[0]) || 0) + 1);
+  const scored = history.filter((h) => full.has(h.date) && h.passes != null)
+    .map((h) => ({ ...h, actual: actual.get(h.date) || 0 }))
+    .map((h) => ({ ...h, accuracy: accuracy(h.passes, h.actual) }));
+  if (!scored.length) return;
+
+  document.getElementById("past-rows").replaceChildren(...scored.reverse().map((h) => {
+    const row = document.createElement("tr");
+    for (const [text, className] of [
+      [shortDay(h.date), "nowrap"],
+      [String(h.passes), "num"],
+      [String(h.actual), "num"],
+      [`${h.accuracy}%`, `num ${h.accuracy >= CORRECT ? "good" : "bad"}`],
+      [h.confidence != null ? `${h.confidence}%` : "–", "num"],
+      [KINDS[h.kind] || "–", ""],
+    ]) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      td.className = className;
+      row.append(td);
+    }
+    return row;
+  }));
+
+  const correct = scored.filter((h) => h.accuracy >= CORRECT).length;
+  const mean = Math.round(scored.reduce((sum, h) => sum + h.accuracy, 0) / scored.length);
+  const stats = [
+    ["Forecast correct", `${Math.round(100 * correct / scored.length)}%`,
+      `${correct} of ${scored.length} days at ${CORRECT}% accuracy or better`],
+    ["Average accuracy", `${mean}%`, "day-ahead forecast vs actual passes"],
+  ];
+  const box = document.getElementById("accuracy");
+  box.replaceChildren(...stats.map(([label, value, note]) => {
+    const div = document.createElement("div");
+    div.className = "stat";
+    for (const [tag, text, className] of [["dt", label, ""], ["dd", value, ""], ["dd", note, "note"]]) {
+      const node = document.createElement(tag);
+      node.textContent = text;
+      node.className = className;
+      div.append(node);
+    }
+    return div;
+  }));
+  box.hidden = false;
+
+  const button = document.getElementById("toggle-past");
+  const past = document.getElementById("past");
+  button.hidden = false;
+  button.addEventListener("click", () => {
+    past.hidden = !past.hidden;
+    button.setAttribute("aria-expanded", String(!past.hidden));
+    button.textContent = past.hidden ? "Show past days" : "Hide past days";
+  });
+}
+
+async function start() {
+  const data = (await getJSON("data/outlook.json")) || { days: [] };
   draw(new Map(data.days.map((d) => [d.date, d])));
   if (data.days.length) {
     document.getElementById("status").hidden = true;
     const issued = new Date(data.generated + "T12:00:00Z").toLocaleDateString("en-GB",
       { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
     document.getElementById("updated").textContent = `Forecast issued ${issued}.`;
+  }
+  if (data.history && data.history.length) {
+    const passes = await getJSON("data/passes.json");
+    if (passes) drawPast(data.history, passes);
   }
 }
 

@@ -12,7 +12,9 @@ happen. Instead the outlook names the most likely kind:
   confidence  the share of runs of that kind, as a percentage
   reason      one of REASONS, from the kind, the confidence and how much the weather
               ensemble's members disagree about the wind
-Also: wind and weather in a few words. Nothing else: no times, positions, distances or altitudes,
+Also: wind and weather in a few words, and history: for each past date, the forecast for it
+issued the day before (carried over from the previous outlook.json), so the site can score the
+forecast against the passes that happened. Nothing else: no times, positions, distances or altitudes,
 so the file says nothing about where the house is.
 
     forecast.py OUT.json
@@ -21,6 +23,7 @@ so the file says nothing about where the house is.
 import argparse
 import json
 import time
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -43,6 +46,23 @@ REASONS = {"west": "Westerly wind, arrivals overhead",
            "edge": "Marginal wind, runway direction uncertain",
            "far": "Far ahead, forecast uncertain"}
 SEED = 1                        # same inputs, same numbers: reruns don't jitter the site
+KEPT = ("date", "passes", "confidence", "kind")     # what history keeps of a forecast day
+
+
+def history(out):
+    """The previous outlook's history, plus its forecast for the day after it was issued."""
+    try:
+        old = json.loads(Path(out).read_text())
+    except (OSError, ValueError):
+        return []
+    past = {h["date"]: h for h in old.get("history", [])}
+    if not old.get("generated"):
+        return list(past.values())
+    ahead = (date.fromisoformat(old["generated"]) + timedelta(days=1)).isoformat()
+    for day in old.get("days", []):
+        if day["date"] == ahead and ahead not in past:
+            past[ahead] = {k: day[k] for k in KEPT}
+    return [past[d] for d in sorted(past)]
 
 
 def main():
@@ -107,7 +127,8 @@ def main():
                      "wind": wind, "weather": words})
         print(f"  {date}: {top} {confidence}% (ensemble sd {disagree:.1f} kt) -> {reason}")
 
-    Path(args.out).write_text(json.dumps({"generated": today, "days": days}) + "\n")
+    Path(args.out).write_text(json.dumps({"generated": today, "days": days,
+                                          "history": history(args.out)}) + "\n")
     state = "west" if start[model.WEST] > 0.5 else "east"
     print(f"Outlook for {dates[0]}..{dates[DAYS - 1]}: now {state} "
           f"(P west {start[model.WEST]:.2f}); " + ", ".join(str(d["passes"]) for d in days))
